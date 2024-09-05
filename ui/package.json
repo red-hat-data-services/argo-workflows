@@ -14,13 +14,13 @@
     },
     "dependencies": {
         "argo-ui": "git+https://github.com/argoproj/argo-ui.git#b7a057c465b2659ae3a0d2f9574caa59f15c2ae6",
-        "chart.js": "^2.9.4",
-        "chartjs-plugin-annotation": "^0.5.7",
+        "chart.js": "^3.0.0",
+        "chartjs-plugin-annotation": "^1.0.0",
         "classnames": "^2.2.5",
-        "cron-parser": "^2.16.3",
+        "cron-parser": "^3.0.0",
         "cronstrue": "^1.109.0",
         "dagre": "^0.8.5",
-        "formik": "^2.1.2",
+        "formik": "^2.2.9",
         "history": "^4.7.2",
         "js-yaml": "^3.13.1",
         "json-merge-patch": "^0.2.3",
@@ -36,7 +36,7 @@
         "react-router-dom": "^4.2.2",
         "superagent": "^3.8.2",
         "superagent-promise": "^1.1.0",
-        "swagger-ui-react": "^4.7.0"
+        "swagger-ui-react": "^5.17.8"
     },
     "devDependencies": {
         "@babel/core": "^7.0.0-0",
