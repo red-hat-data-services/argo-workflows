@@ -1,0 +1,39 @@
+ARG SOURCE_CODE=.
+
+FROM registry.redhat.io/ubi8/go-toolset:1.21 as builder
+
+# Build args to be used at this step
+ARG SOURCE_CODE
+WORKDIR /workspace
+
+USER root
+RUN dnf install -y mailcap
+
+COPY ${SOURCE_CODE}/go.mod .
+COPY ${SOURCE_CODE}/go.sum .
+COPY ${SOURCE_CODE}/ ./
+
+# Set the /workspace directory as safe for Git
+RUN git config --global --add safe.directory /workspace
+
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build make dist/argoexec GIT_COMMIT=${GIT_COMMIT} GIT_TAG=${GIT_TAG} GIT_TREE_STATE=${GIT_TREE_STATE}
+
+
+####################################################################################################
+FROM registry.redhat.io/ubi8/ubi-minimal:8.10 AS argoexec
+
+
+ARG CI_CONTAINER_VERSION
+
+WORKDIR /bin
+
+COPY --from=builder /workspace/dist/argoexec /bin/
+COPY --from=builder /etc/mime.types /etc/mime.types
+COPY --from=builder /workspace/hack/ssh_known_hosts /etc/ssh/
+COPY --from=builder /workspace/hack/nsswitch.conf /etc/
+
+RUN chmod +x /bin/argoexec
+
+USER 2000
+
+ENTRYPOINT [ "/bin/argoexec" ]
