@@ -8,10 +8,12 @@ on:
       - "!release-2.8"
       - "main"
       - "stable"
+      - "rhoai-*"
   pull_request:
     branches:
       - "main"
       - "stable"
+      - "rhoai-*"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
