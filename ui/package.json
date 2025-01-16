@@ -97,6 +97,7 @@
         "lodash": "4.17.21",
         "prismjs": "1.27.0",
         "react-toastify": "9.0.3",
-        "semver": "^7.5.2"
+        "semver": "^7.5.2",
+        "path-to-regexp": "0.1.12"
     }
 }
