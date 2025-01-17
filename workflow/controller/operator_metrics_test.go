@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -70,7 +71,7 @@ func TestBasicMetric(t *testing.T) {
 	metric := controller.metrics.GetCustomMetric(metricDesc).(prometheus.Gauge)
 	metricString, err := getMetricStringValue(metric)
 	assert.NoError(t, err)
-	assert.Contains(t, metricString, `label:<name:"name" value:"random-int" > gauge:<value:`)
+	assert.Contains(t, metricString, `label:{name:"name" value:"random-int"} gauge:{value:-`)
 }
 
 var counterMetric = `
@@ -128,13 +129,13 @@ func TestCounterMetric(t *testing.T) {
 	metricTotalCounter := controller.metrics.GetCustomMetric(metricTotalDesc).(prometheus.Counter)
 	metricTotalCounterString, err := getMetricStringValue(metricTotalCounter)
 	assert.NoError(t, err)
-	assert.Contains(t, metricTotalCounterString, `label:<name:"name" value:"flakey" > counter:<value:1 >`)
+	assert.Contains(t, metricTotalCounterString, `label:{name:"name" value:"flakey"} counter:{value:1}`)
 
 	metricErrorCounter, ok := controller.metrics.GetCustomMetric(metricErrorDesc).(prometheus.Counter)
 	if ok {
 		metricErrorCounterString, err := getMetricStringValue(metricErrorCounter)
 		assert.NoError(t, err)
-		assert.Contains(t, metricErrorCounterString, `label:<name:"name" value:"flakey" > counter:<value:1 >`)
+		assert.Contains(t, metricErrorCounterString, `label:{name:"name" value:"flakey"} counter:{value:1}`)
 	}
 }
 
@@ -144,7 +145,8 @@ func getMetricStringValue(metric prometheus.Metric) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("%v", metricString), nil
+	// Handle the case where sometimes there are double spaces and sometimes not.
+	return strings.ReplaceAll(fmt.Sprintf("%v", metricString), "  ", " "), nil
 }
 
 func getMetricGaugeValue(metric prometheus.Metric) (*float64, error) {
@@ -232,7 +234,7 @@ func TestMetricEmissionSameOperationCreationAndFailure(t *testing.T) {
 	metricErrorCounter := controller.metrics.GetCustomMetric(metricErrorDesc).(prometheus.Counter)
 	metricErrorCounterString, err := getMetricStringValue(metricErrorCounter)
 	assert.NoError(t, err)
-	assert.Contains(t, metricErrorCounterString, `counter:<value:1 > `)
+	assert.Contains(t, metricErrorCounterString, `counter:{value:1}`)
 }
 
 var testRetryStrategyMetric = `
@@ -313,14 +315,14 @@ func TestRetryStrategyMetric(t *testing.T) {
 		metricErrorCounter := controller.metrics.GetCustomMetric(metricErrorDesc).(prometheus.Counter)
 		metricErrorCounterString, err := getMetricStringValue(metricErrorCounter)
 		assert.NoError(t, err)
-		assert.Contains(t, metricErrorCounterString, `counter:<value:1 > `)
+		assert.Contains(t, metricErrorCounterString, `counter:{value:1}`)
 
 		metricErrorDesc = wf.Spec.Templates[1].Metrics.Prometheus[0].GetDesc()
 		assert.NotNil(t, controller.metrics.GetCustomMetric(metricErrorDesc))
 		metricErrorCounter = controller.metrics.GetCustomMetric(metricErrorDesc).(prometheus.Counter)
 		metricErrorCounterString, err = getMetricStringValue(metricErrorCounter)
 		assert.NoError(t, err)
-		assert.Contains(t, metricErrorCounterString, `counter:<value:1 > `)
+		assert.Contains(t, metricErrorCounterString, `counter:{value:1}`)
 	}
 }
 
@@ -431,7 +433,7 @@ func TestDAGTmplMetrics(t *testing.T) {
 	metricHistogram := controller.metrics.GetCustomMetric(metricDesc).(prometheus.Histogram)
 	metricHistogramString, err := getMetricStringValue(metricHistogram)
 	assert.NoError(t, err)
-	assert.Contains(t, metricHistogramString, `histogram:<sample_count:1 sample_sum:5`)
+	assert.Contains(t, metricHistogramString, `histogram:{sample_count:1 sample_sum:5`)
 
 	tmpl = woc.wf.GetTemplateByName("flakey")
 	assert.NotNil(t, tmpl)
@@ -440,7 +442,7 @@ func TestDAGTmplMetrics(t *testing.T) {
 	metricCounter := controller.metrics.GetCustomMetric(metricDesc).(prometheus.Counter)
 	metricCounterString, err := getMetricStringValue(metricCounter)
 	assert.NoError(t, err)
-	assert.Contains(t, metricCounterString, `counter:<value:1 > `)
+	assert.Contains(t, metricCounterString, `counter:{value:1}`)
 }
 
 var testRealtimeWorkflowMetric = `
@@ -491,7 +493,7 @@ func TestRealtimeWorkflowMetric(t *testing.T) {
 	metricErrorCounter := controller.metrics.GetCustomMetric(metricErrorDesc)
 	metricErrorCounterString, err := getMetricStringValue(metricErrorCounter)
 	assert.NoError(t, err)
-	assert.Contains(t, metricErrorCounterString, `label:<name:"workflowName" value:"test-foobar" > gauge:<value:`)
+	assert.Contains(t, metricErrorCounterString, `label:{name:"label" value:"foobar"} label:{name:"workflowName" value:"test-foobar"} gauge:{value:`)
 
 	value1, err := getMetricGaugeValue(controller.metrics.GetCustomMetric(metricErrorDesc))
 	assert.NoError(t, err)
@@ -558,7 +560,7 @@ func TestRealtimeWorkflowMetricWithGlobalParameters(t *testing.T) {
 	metricErrorCounter := controller.metrics.GetCustomMetric(metricErrorDesc)
 	metricErrorCounterString, err := getMetricStringValue(metricErrorCounter)
 	assert.NoError(t, err)
-	assert.Contains(t, metricErrorCounterString, `label:<name:"workflowName" value:"test-foobar" > gauge:<value:`)
+	assert.Contains(t, metricErrorCounterString, `label:{name:"label" value:"foobar"} label:{name:"workflowName" value:"test-foobar"} gauge:{value:`)
 }
 
 var testProcessedRetryNode = `
