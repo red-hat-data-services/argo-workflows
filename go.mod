@@ -51,9 +51,9 @@ require (
 	github.com/valyala/fasttemplate v1.2.1
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
 	github.com/xeipuuv/gojsonschema v1.2.0
-	golang.org/x/crypto v0.14.0
+	golang.org/x/crypto v0.31.0
 	golang.org/x/oauth2 v0.10.0
-	golang.org/x/sync v0.3.0
+	golang.org/x/sync v0.10.0
 	golang.org/x/time v0.3.0
 	google.golang.org/api v0.126.0
 	google.golang.org/genproto v0.0.0-20230711160842-782d3b101e98 // indirect
@@ -103,7 +103,7 @@ require (
 	github.com/fsnotify/fsnotify v1.5.4 // indirect
 	github.com/go-git/gcfg v1.5.0 // indirect
 	github.com/go-git/go-billy/v5 v5.3.1 // indirect
-	github.com/go-git/go-git/v5 v5.4.2
+	github.com/go-git/go-git/v5 v5.13.1
 	github.com/go-jose/go-jose/v3 v3.0.0
 	github.com/go-logr/logr v1.2.2 // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
@@ -165,9 +165,9 @@ require (
 	github.com/yudai/gojsondiff v1.0.0 // indirect
 	github.com/yudai/golcs v0.0.0-20170316035057-ecda9a501e82 // indirect
 	go.opencensus.io v0.24.0 // indirect
-	golang.org/x/sys v0.15.0 // indirect
-	golang.org/x/term v0.15.0 // indirect
-	golang.org/x/text v0.14.0 // indirect
+	golang.org/x/sys v0.28.0 // indirect
+	golang.org/x/term v0.27.0 // indirect
+	golang.org/x/text v0.21.0 // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/protobuf v1.31.0 // indirect
@@ -187,7 +187,7 @@ require (
 )
 
 require (
-	golang.org/x/net v0.12.0
+	golang.org/x/net v0.33.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20230711160842-782d3b101e98
 )
 
@@ -210,9 +210,6 @@ replace (
 	github.com/labstack/echo v3.2.1+incompatible => github.com/labstack/echo/v4 v4.9.0
 	github.com/nats-io/nats-server/v2 v2.7.2 => github.com/nats-io/nats-server/v2 v2.10.2
 	github.com/nats-io/nats-streaming-server v0.24.1 => github.com/nats-io/nats-streaming-server v0.24.3
-	golang.org/x/crypto v0.14.0 => golang.org/x/crypto v0.17.0
-	golang.org/x/net v0.0.0-20220225172249-27dd8689420f => golang.org/x/net v0.17.0
-	golang.org/x/net v0.17.0 => golang.org/x/net v0.23.0
 	google.golang.org/grpc v1.44.0 => google.golang.org/grpc v1.58.3
 	google.golang.org/grpc v1.56.2 => google.golang.org/grpc v1.58.3
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b => gopkg.in/yaml.v3 v3.0.1
