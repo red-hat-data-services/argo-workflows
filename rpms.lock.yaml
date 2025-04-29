@@ -2,14 +2,20 @@
 lockfileVersion: 1
 lockfileVendor: redhat
 arches:
-- arch: x86_64
-  packages:
-  - url: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi8/8/x86_64/baseos/os/Packages/m/mailcap-2.1.48-3.el8.noarch.rpm
-    repoid: ubi-8-for-x86_64-baseos-rpms
-    size: 39708
-    checksum: sha256:b2d5f3c4e187dc8c6f94b551fc021925188ab7675e02a317111aa0b49965f03e
-    name: mailcap
-    evr: 2.1.48-3.el8
-    sourcerpm: mailcap-2.1.48-3.el8.src.rpm
-  source: []
-  module_metadata: []
+  - arch: x86_64
+    packages:
+      - url: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/x86_64/baseos/os/Packages/m/mailcap-2.1.49-5.el9.noarch.rpm
+        repoid: ubi-9-for-x86_64-baseos-rpms
+        size: 35492
+        checksum: sha256:6c880effa119e3eaf709ba6290a4f6e2b7294de64baf19ee84f672a89e732090
+        name: mailcap
+        evr: 2.1.49-5.el9
+        sourcerpm: mailcap-2.1.49-5.el9.src.rpm
+    source:
+      - url: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/x86_64/baseos/source/SRPMS/Packages/m/mailcap-2.1.49-5.el9.src.rpm
+        repoid: ubi-9-for-x86_64-baseos-source-rpms
+        size: 36955
+        checksum: sha256:34c34987a363c83bc8583167709b988837b1686e7b4d7faabe0247731321792b
+        name: mailcap
+        evr: 2.1.49-5.el9
+    module_metadata: []
