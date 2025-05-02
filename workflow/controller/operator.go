@@ -3498,7 +3498,15 @@ func (woc *wfOperationCtx) executeResource(ctx context.Context, nodeName string,
 	}
 
 	mainCtr := woc.newExecContainer(common.MainContainerName, tmpl)
-	mainCtr.Command = []string{"argoexec", "resource", tmpl.Resource.Action}
+
+	argoExecPath := os.Getenv(common.EnvVarArgoExecPath)
+	if argoExecPath != "" {
+		log.Infof("Using argoexec path from environment variable for the resource subcommand: %s", argoExecPath)
+	} else {
+		argoExecPath = "argoexec"
+	}
+
+	mainCtr.Command = []string{argoExecPath, "resource", tmpl.Resource.Action}
 	_, err = woc.createWorkflowPod(ctx, nodeName, []apiv1.Container{*mainCtr}, tmpl, &createWorkflowPodOpts{onExitPod: opts.onExitTemplate, executionDeadline: opts.executionDeadline})
 	if err != nil {
 		return woc.requeueIfTransientErr(err, node.Name)
@@ -3521,7 +3529,15 @@ func (woc *wfOperationCtx) executeData(ctx context.Context, nodeName string, tem
 	}
 
 	mainCtr := woc.newExecContainer(common.MainContainerName, tmpl)
-	mainCtr.Command = []string{"argoexec", "data", string(dataTemplate)}
+
+	argoExecPath := os.Getenv(common.EnvVarArgoExecPath)
+	if argoExecPath != "" {
+		log.Infof("Using argoexec path from environment variable for the data subcommand: %s", argoExecPath)
+	} else {
+		argoExecPath = "argoexec"
+	}
+
+	mainCtr.Command = []string{argoExecPath, "data", string(dataTemplate)}
 	_, err = woc.createWorkflowPod(ctx, nodeName, []apiv1.Container{*mainCtr}, tmpl, &createWorkflowPodOpts{onExitPod: opts.onExitTemplate, executionDeadline: opts.executionDeadline, includeScriptOutput: true})
 	if err != nil {
 		return woc.requeueIfTransientErr(err, node.Name)
