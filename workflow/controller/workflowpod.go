@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strconv"
 	"time"
@@ -520,14 +521,30 @@ func substitutePodParams(pod *apiv1.Pod, globalParams common.Parameters, tmpl *w
 }
 
 func (woc *wfOperationCtx) newInitContainer(tmpl *wfv1.Template) apiv1.Container {
+	argoExecPath := os.Getenv(common.EnvVarArgoExecPath)
+	if argoExecPath != "" {
+		log.Infof("Using argoexec path from environment variable for the init subcommand: %s", argoExecPath)
+	} else {
+		argoExecPath = "argoexec"
+	}
+
 	ctr := woc.newExecContainer(common.InitContainerName, tmpl)
-	ctr.Command = []string{"argoexec", "init", "--loglevel", getExecutorLogLevel(), "--log-format", woc.controller.executorLogFormat()}
+	ctr.Command = []string{argoExecPath, "init", "--loglevel", getExecutorLogLevel(), "--log-format", woc.controller.executorLogFormat()}
+
 	return *ctr
 }
 
 func (woc *wfOperationCtx) newWaitContainer(tmpl *wfv1.Template) *apiv1.Container {
 	ctr := woc.newExecContainer(common.WaitContainerName, tmpl)
-	ctr.Command = []string{"argoexec", "wait", "--loglevel", getExecutorLogLevel(), "--log-format", woc.controller.executorLogFormat()}
+
+	argoExecPath := os.Getenv(common.EnvVarArgoExecPath)
+	if argoExecPath != "" {
+		log.Infof("Using argoexec path from environment variable for the wait subcommand: %s", argoExecPath)
+	} else {
+		argoExecPath = "argoexec"
+	}
+
+	ctr.Command = []string{argoExecPath, "wait", "--loglevel", getExecutorLogLevel(), "--log-format", woc.controller.executorLogFormat()}
 	return ctr
 }
 
