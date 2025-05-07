@@ -1,0 +1,55 @@
+ARG SOURCE_CODE=.
+
+# Builder args
+ARG GIT_COMMIT=unknown
+ARG GIT_TAG=unknown
+ARG GIT_TREE_STATE=unknown
+
+FROM registry.access.redhat.com/ubi9/go-toolset:1.22@sha256:e4193e71ea9f2e2504f6b4ee93cadef0fe5d7b37bba57484f4d4229801a7c063 as builder
+
+# Build args to be used at this step
+ARG SOURCE_CODE
+WORKDIR /workspace
+
+USER root
+RUN dnf install -y mailcap
+
+COPY ${SOURCE_CODE}/go.mod .
+COPY ${SOURCE_CODE}/go.sum .
+COPY ${SOURCE_CODE}/ ./
+
+# Set the /workspace directory as safe for Git
+RUN git config --global --add safe.directory /workspace
+
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build GIT_COMMIT=${GIT_COMMIT} GIT_TAG=${GIT_TAG} GIT_TREE_STATE=${GIT_TREE_STATE} CGO_ENABLED=1 GOEXPERIMENT=strictfipsruntime go build -tags strictfipsruntime -v  -o dist/argoexec-fips ./cmd/argoexec
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build GIT_COMMIT=${GIT_COMMIT} GIT_TAG=${GIT_TAG} GIT_TREE_STATE=${GIT_TREE_STATE} CGO_ENABLED=0 go build -ldflags '-extldflags -static' -v  -o dist/argoexec ./cmd/argoexec
+
+####################################################################################################
+FROM registry.redhat.io/ubi9/ubi-minimal@sha256:e1c4703364c5cb58f5462575dc90345bcd934ddc45e6c32f9c162f2b5617681c AS argoexec
+
+
+ARG CI_CONTAINER_VERSION
+
+LABEL com.redhat.component="odh-data-science-pipelines-argo-argoexec-container" \
+      name="managed-open-data-hub/odh-data-science-pipelines-argo-argoexec-rhel8" \
+      description="Argo Executor for Argo Workflows used in Data Science Pipelines" \
+      summary="odh-data-science-pipelines-argo-argoexec" \
+      maintainer="['managed-open-data-hub@redhat.com']" \
+      io.openshift.expose-services="" \
+      io.k8s.display-name="odh-data-science-pipelines-argo-argoexec" \
+      io.k8s.description="odh-data-science-pipelines-argo-argoexec" \
+      com.redhat.license_terms="https://www.redhat.com/licenses/Red_Hat_Standard_EULA_20191108.pdf"
+
+WORKDIR /bin
+
+COPY --from=builder /workspace/dist/argoexec /bin/
+COPY --from=builder /workspace/dist/argoexec-fips /bin/
+COPY --from=builder /etc/mime.types /etc/mime.types
+COPY --from=builder /workspace/hack/ssh_known_hosts /etc/ssh/
+COPY --from=builder /workspace/hack/nsswitch.conf /etc/
+
+RUN chmod +x /bin/argoexec && chmod +x /bin/argoexec-fips
+
+USER 2000
+
+ENTRYPOINT [ "/bin/argoexec" ]
