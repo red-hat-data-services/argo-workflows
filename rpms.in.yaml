@@ -1,0 +1,9 @@
+arches:
+  - x86_64
+contentOrigin:
+  repofiles:
+    - ubi.repo
+packages:
+  - mailcap
+context:
+  containerfile: argo-argoexec/Dockerfile.konflux
