@@ -1,17 +1,30 @@
 owners:
-- sarabala1979
-- terrytangyuan
+  - accorvin
+  - DharmitD
+  - dsp-developers
+  - gmfrasca
+  - HumairAK
+  - rimolive
+  - mprahl
+  - terrytangyuan
 
 approvers:
-- agilgur5
-- alexec
-- alexmt
-- edlee2121
-- isubasinghe
-- jessesuen
-- joibel
-- juliev0
-- tczhao
+  - accorvin
+  - DharmitD
+  - dsp-developers
+  - gmfrasca
+  - HumairAK
+  - rimolive
+  - mprahl
 
 reviewers:
-- shuangkun
+  - DharmitD
+  - gmfrasca
+  - hbelmiro
+  - HumairAK
+  - rimolive
+  - VaniHaripriya
+  - mprahl
+
+emeritus_approvers:
+  - harshad16
