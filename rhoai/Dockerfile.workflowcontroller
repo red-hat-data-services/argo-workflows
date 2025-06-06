@@ -1,0 +1,48 @@
+# Build arguments
+ARG SOURCE_CODE=.
+ARG CI_CONTAINER_VERSION="unknown"
+ARG CI_CONTAINER_RELEASE="unknown"
+# Builder args
+ARG GIT_COMMIT=unknown
+ARG GIT_TAG=unknown
+ARG GIT_TREE_STATE=unknown
+
+FROM registry.redhat.io/ubi8/go-toolset:1.21 as builder
+
+# Build args to be used at this step
+ARG SOURCE_CODE
+WORKDIR /workspace
+
+USER root
+RUN dnf install -y mailcap
+
+COPY ${SOURCE_CODE}/go.mod .
+COPY ${SOURCE_CODE}/go.sum .
+COPY ${SOURCE_CODE}/ ./
+
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build make dist/workflow-controller GIT_COMMIT=${GIT_COMMIT} GIT_TAG=${GIT_TAG} GIT_TREE_STATE=${GIT_TREE_STATE}
+
+####################################################################################################
+
+FROM registry.redhat.io/ubi8/ubi-minimal:latest AS workflow-controller
+
+ARG CI_CONTAINER_VERSION
+
+LABEL com.redhat.component="odh-data-science-pipelines-argo-workflowcontroller-container" \
+      name="managed-open-data-hub/odh-data-science-pipelines-argo-workflowcontroller-rhel8" \
+      version="${CI_CONTAINER_VERSION}" \
+      git.url="${CI_ARGO_WORKFLOWS_UPSTREAM_URL}" \
+      git.commit="${CI_ARGO_WORKFLOWS_UPSTREAM_COMMIT}" \
+      summary="odh-data-science-pipelines-argo-workflowcontroller" \
+      io.openshift.expose-services="" \
+      io.k8s.display-name="odh-data-science-pipelines-argo-workflowcontroller" \
+      maintainer="['managed-open-data-hub@redhat.com']" \
+      description="Argo Workflow Controller for Argo Workflows used in Data Science Pipelines" \
+      com.redhat.license_terms="https://www.redhat.com/licenses/Red_Hat_Standard_EULA_20191108.pdf"
+
+WORKDIR /bin
+USER 8737
+COPY --from=builder /workspace/hack/ssh_known_hosts /etc/ssh/
+COPY --from=builder /workspace/hack/nsswitch.conf /etc/
+COPY --chown=8737 --from=builder /workspace/dist/workflow-controller /bin/workflow-controller
+ENTRYPOINT [ "/bin/workflow-controller" ]
