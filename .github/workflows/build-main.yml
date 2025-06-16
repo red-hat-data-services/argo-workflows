@@ -1,0 +1,67 @@
+name: Build images
+on:
+  workflow_dispatch:
+    inputs:
+      QUAY_ORG:
+        default: opendatahub
+        description: "Quay Org to push images to"
+        required: true
+      SOURCE_BRANCH:
+        default: main
+        description: "Source branch to build image from"
+        required: true
+      TAG:
+        description: "Image Tag"
+        required: true
+      FAIL_FAST:
+        description: "The job should fail fast"
+        required: true
+  push:
+    branches:
+      - main
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+env:
+  SOURCE_BRANCH: ${{ inputs.SOURCE_BRANCH || 'main' }}
+  QUAY_ORG: ${{ inputs.QUAY_ORG || 'opendatahub' }}
+  QUAY_ID: ${{ secrets.QUAY_USERNAME }}
+  QUAY_TOKEN: ${{ secrets.QUAY_PASSWORD }}
+jobs:
+  build-image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: ${{ inputs.FAIL_FAST == 'true' }}
+      matrix:
+        include:
+          - image: ds-pipelines-argo-workflowcontroller
+            dockerfile: ./argo-workflowcontroller/Dockerfile.ODH
+          - image: ds-pipelines-argo-argoexec
+            dockerfile: ./argo-argoexec/Dockerfile.ODH
+    steps:
+      - uses: actions/checkout@v3
+      - name: Login to RH Registry
+        uses: redhat-actions/podman-login@v1
+        with:
+          username: ${{ secrets.RH_REGISTRY_ID }}
+          password: ${{ secrets.RH_REGISTRY_TOKEN }}
+          registry: registry.redhat.io
+      - name: Generate Tag
+        if: github.event_name == 'push'
+        shell: bash
+        id: tags
+        run: |
+          commit_sha=${{ github.event.after }}
+          tag=main-${commit_sha:0:7}
+          echo "tag=${tag}" >> $GITHUB_OUTPUT
+      
+      - name: Build and Tag Argo Workflow Exec Image
+        uses: ./.github/actions/build_and_tag
+        env:
+          IMAGE_REPO: ${{ matrix.image }}
+        with:
+          TAG: ${{ steps.tags.outputs.tag  || inputs.TAG}}
+          TAG_LATEST: ${{ github.event_name == 'push' }}
+          DOCKERFILE: ${{ matrix.dockerfile }}
