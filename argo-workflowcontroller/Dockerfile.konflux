@@ -25,7 +25,7 @@ RUN git config --global --add safe.directory /workspace
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build  GIT_COMMIT=${GIT_COMMIT} GIT_TAG=${GIT_TAG} GIT_TREE_STATE=${GIT_TREE_STATE} CGO_ENABLED=1 GOEXPERIMENT=strictfipsruntime go build  -tags strictfipsruntime -v  -o dist/workflow-controller ./cmd/workflow-controller
 
 ####################################################################################################
-FROM registry.redhat.io/ubi9/ubi-minimal@sha256:67fee1a132e8e326434214b3c7ce90b2500b2ad02c9790cc61581feb58d281d5 AS workflow-controller
+FROM registry.redhat.io/ubi9/ubi-minimal@sha256:0d7cfb0704f6d389942150a01a20cb182dc8ca872004ebf19010e2b622818926 AS workflow-controller
 
 
 ARG CI_CONTAINER_VERSION
