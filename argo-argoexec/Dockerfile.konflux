@@ -31,14 +31,15 @@ FROM registry.redhat.io/ubi8/ubi-minimal@sha256:b2a1bec3dfbc7a14a1d84d98934dfe8f
 ARG CI_CONTAINER_VERSION
 
 LABEL com.redhat.component="odh-data-science-pipelines-argo-argoexec-container" \
-      name="managed-open-data-hub/odh-data-science-pipelines-argo-argoexec-rhel8" \
+      name="rhoai/odh-data-science-pipelines-argo-argoexec-rhel8" \
       description="Argo Executor for Argo Workflows used in Data Science Pipelines" \
       summary="odh-data-science-pipelines-argo-argoexec" \
       maintainer="['managed-open-data-hub@redhat.com']" \
       io.openshift.expose-services="" \
       io.k8s.display-name="odh-data-science-pipelines-argo-argoexec" \
       io.k8s.description="odh-data-science-pipelines-argo-argoexec" \
-      com.redhat.license_terms="https://www.redhat.com/licenses/Red_Hat_Standard_EULA_20191108.pdf"
+      com.redhat.license_terms="https://www.redhat.com/licenses/Red_Hat_Standard_EULA_20191108.pdf" \
+      cpe="cpe:/a:redhat:openshift_ai:2.20::el8"
 
 WORKDIR /bin
 
