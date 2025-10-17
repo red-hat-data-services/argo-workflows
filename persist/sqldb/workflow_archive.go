@@ -1,10 +1,8 @@
 package sqldb
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -22,9 +20,8 @@ import (
 )
 
 const (
-	archiveTableName        = "argo_archived_workflows"
-	archiveLabelsTableName  = archiveTableName + "_labels"
-	postgresNullReplacement = "ARGO_POSTGRES_NULL_REPLACEMENT"
+	archiveTableName       = "argo_archived_workflows"
+	archiveLabelsTableName = archiveTableName + "_labels"
 )
 
 type archivedWorkflowMetadata struct {
@@ -101,13 +98,10 @@ func NewWorkflowArchive(session db.Session, clusterName, managedNamespace string
 func (r *workflowArchive) ArchiveWorkflow(wf *wfv1.Workflow) error {
 	logCtx := log.WithFields(log.Fields{"uid": wf.UID, "labels": wf.GetLabels()})
 	logCtx.Debug("Archiving workflow")
-	wf.ObjectMeta.Labels[common.LabelKeyWorkflowArchivingStatus] = "Persisted"
+	wf.Labels[common.LabelKeyWorkflowArchivingStatus] = "Persisted"
 	workflow, err := json.Marshal(wf)
 	if err != nil {
 		return err
-	}
-	if r.dbType == Postgres {
-		workflow = bytes.ReplaceAll(workflow, []byte("\\u0000"), []byte(postgresNullReplacement))
 	}
 	return r.session.Tx(func(sess db.Session) error {
 		_, err := sess.SQL().
@@ -370,15 +364,12 @@ func (r *workflowArchive) GetWorkflow(uid string, namespace string, name string)
 		return nil, err
 	}
 	var wf *wfv1.Workflow
-	if r.dbType == Postgres {
-		archivedWf.Workflow = strings.ReplaceAll(archivedWf.Workflow, postgresNullReplacement, "\\u0000")
-	}
 	err = json.Unmarshal([]byte(archivedWf.Workflow), &wf)
 	if err != nil {
 		return nil, err
 	}
 	// For backward compatibility, we should label workflow retrieved from DB as Persisted.
-	wf.ObjectMeta.Labels[common.LabelKeyWorkflowArchivingStatus] = "Persisted"
+	wf.Labels[common.LabelKeyWorkflowArchivingStatus] = "Persisted"
 	return wf, nil
 }
 
@@ -461,7 +452,7 @@ func selectArchivedWorkflowQuery(t dbType) (*db.RawExpr, error) {
 	case MySQL:
 		return db.Raw("name, namespace, uid, phase, startedat, finishedat, coalesce(JSON_EXTRACT(workflow,'$.metadata.labels'), '{}') as labels,coalesce(JSON_EXTRACT(workflow,'$.metadata.annotations'), '{}') as annotations, coalesce(JSON_UNQUOTE(JSON_EXTRACT(workflow,'$.status.progress')), '') as progress, coalesce(JSON_UNQUOTE(JSON_EXTRACT(workflow,'$.metadata.creationTimestamp')), '') as creationtimestamp, JSON_UNQUOTE(JSON_EXTRACT(workflow,'$.spec.suspend')) as suspend, coalesce(JSON_UNQUOTE(JSON_EXTRACT(workflow,'$.status.message')), '') as message, coalesce(JSON_UNQUOTE(JSON_EXTRACT(workflow,'$.status.estimatedDuration')), '0') as estimatedduration, coalesce(JSON_EXTRACT(workflow,'$.status.resourcesDuration'), '{}') as resourcesduration"), nil
 	case Postgres:
-		return db.Raw("name, namespace, uid, phase, startedat, finishedat, coalesce((workflow::json)->'metadata'->>'labels', '{}') as labels, coalesce((workflow::json)->'metadata'->>'annotations', '{}') as annotations, coalesce((workflow::json)->'status'->>'progress', '') as progress, coalesce((workflow::json)->'metadata'->>'creationTimestamp', '') as creationtimestamp, (workflow::json)->'spec'->>'suspend' as suspend, coalesce((workflow::json)->'status'->>'message', '') as message, coalesce((workflow::json)->'status'->>'estimatedDuration', '0') as estimatedduration, coalesce((workflow::json)->'status'->>'resourcesDuration', '{}') as resourcesduration"), nil
+		return db.Raw("name, namespace, uid, phase, startedat, finishedat, coalesce(workflow->'metadata'->>'labels', '{}') as labels, coalesce(workflow->'metadata'->>'annotations', '{}') as annotations, coalesce(workflow->'status'->>'progress', '') as progress, coalesce(workflow->'metadata'->>'creationTimestamp', '') as creationtimestamp, workflow->'spec'->>'suspend' as suspend, coalesce(workflow->'status'->>'message', '') as message, coalesce(workflow->'status'->>'estimatedDuration', '0') as estimatedduration, coalesce(workflow->'status'->>'resourcesDuration', '{}') as resourcesduration"), nil
 	}
 	return nil, fmt.Errorf("unsupported db type %s", t)
 }

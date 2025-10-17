@@ -2,6 +2,7 @@ package common
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -97,10 +98,10 @@ func ExecPodContainer(restConfig *rest.Config, namespace string, pod string, con
 }
 
 // GetExecutorOutput returns the output of an remotecommand.Executor
-func GetExecutorOutput(exec remotecommand.Executor) (*bytes.Buffer, *bytes.Buffer, error) {
+func GetExecutorOutput(ctx context.Context, exec remotecommand.Executor) (*bytes.Buffer, *bytes.Buffer, error) {
 	var stdOut bytes.Buffer
 	var stdErr bytes.Buffer
-	err := exec.Stream(remotecommand.StreamOptions{
+	err := exec.StreamWithContext(ctx, remotecommand.StreamOptions{
 		Stdout: &stdOut,
 		Stderr: &stdErr,
 		Tty:    false,
@@ -132,7 +133,7 @@ func overwriteWithArguments(argParam, inParam *wfv1.Parameter) {
 func substituteAndGetConfigMapValue(inParam *wfv1.Parameter, globalParams Parameters, namespace string, configMapStore ConfigMapStore) error {
 	if inParam.ValueFrom != nil && inParam.ValueFrom.ConfigMapKeyRef != nil {
 		if configMapStore != nil {
-			replaceMap := make(map[string]string)
+			replaceMap := make(map[string]interface{})
 			for k, v := range globalParams {
 				replaceMap[k] = v
 			}
@@ -224,7 +225,7 @@ func ProcessArgs(tmpl *wfv1.Template, args wfv1.ArgumentsProvider, globalParams,
 }
 
 // substituteConfigMapKeyRefParam performs template substitution for ConfigMapKeyRef
-func substituteConfigMapKeyRefParam(in string, replaceMap map[string]string) (string, error) {
+func substituteConfigMapKeyRefParam(in string, replaceMap map[string]interface{}) (string, error) {
 	tmpl, err := template.NewTemplate(in)
 	if err != nil {
 		return "", err
@@ -254,7 +255,6 @@ func SubstituteParams(tmpl *wfv1.Template, globalParams, localParams Parameters)
 		return nil, errors.InternalWrapError(err)
 	}
 	// Now replace the rest of substitutions (the ones that can be made) in the template
-	replaceMap = make(map[string]string)
 	for _, inParam := range globalReplacedTmpl.Inputs.Parameters {
 		if inParam.Value == nil && inParam.ValueFrom == nil {
 			return nil, errors.InternalErrorf("inputs.parameters.%s had no value", inParam.Name)
@@ -310,7 +310,7 @@ func GetTemplateHolderString(tmplHolder wfv1.TemplateReferenceHolder) string {
 	} else if x := tmplHolder.GetTemplateRef(); x != nil {
 		return fmt.Sprintf("%T (%s/%s#%v)", tmplHolder, x.Name, x.Template, x.ClusterScope)
 	} else {
-		return fmt.Sprintf("%T invalid (https://argo-workflows.readthedocs.io/en/release-3.5/templates/)", tmplHolder)
+		return fmt.Sprintf("%T invalid (https://argo-workflows.readthedocs.io/en/latest/templates/)", tmplHolder)
 	}
 }
 
@@ -322,35 +322,6 @@ func IsDone(un *unstructured.Unstructured) bool {
 	return un.GetDeletionTimestamp() == nil &&
 		un.GetLabels()[LabelKeyCompleted] == "true" &&
 		un.GetLabels()[LabelKeyWorkflowArchivingStatus] != "Pending"
-}
-
-// CheckHookNode is used to determine if
-// a node was a hook node via its name.
-func CheckHookNode(nodeName string) bool {
-	names := strings.Split(nodeName, ".")
-	if len(names) == 2 {
-		return names[1] == "onExit"
-	}
-
-	if len(names) <= 2 {
-		return false
-	}
-
-	if names[len(names)-1] == "onExit" || names[len(names)-2] == "hooks" {
-		return true
-	}
-	return false
-}
-
-// CheckRetryNodeParent determines if a node is a retriable node,
-// that is if the node is the child of a retry node.
-func CheckRetryNodeParent(parentsMap map[string]*wfv1.NodeStatus, nodeID string) bool {
-	parent, found := parentsMap[nodeID]
-	if !found {
-		return false
-	}
-
-	return parent.Type == wfv1.NodeTypeRetry
 }
 
 // Check whether child hooked nodes Fulfilled

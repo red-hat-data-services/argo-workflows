@@ -40,6 +40,13 @@ type ArtifactServer struct {
 	artifactRepositories artifactrepositories.Interface
 }
 
+type Direction string
+
+const (
+	Outputs Direction = "outputs"
+	Inputs  Direction = "inputs"
+)
+
 func NewArtifactServer(authN auth.Gatekeeper, hydrator hydrator.Interface, wfArchive sqldb.WorkflowArchive, instanceIDService instanceid.Service, artifactRepositories artifactrepositories.Interface) *ArtifactServer {
 	return newArtifactServer(authN, hydrator, wfArchive, instanceIDService, artifact.NewDriver, artifactRepositories)
 }
@@ -59,9 +66,9 @@ func (a *ArtifactServer) GetInputArtifact(w http.ResponseWriter, r *http.Request
 // single endpoint to be able to handle serving directories as well as files, both those that have been archived and those that haven't
 // Valid requests:
 //
-//	/artifact-files/{namespace}/[archived-workflows|workflows]/{id}/{nodeId}/outputs/{artifactName}
-//	/artifact-files/{namespace}/[archived-workflows|workflows]/{id}/{nodeId}/outputs/{artifactName}/{fileName}
-//	/artifact-files/{namespace}/[archived-workflows|workflows]/{id}/{nodeId}/outputs/{artifactName}/{fileDir}/.../{fileName}
+//	/artifact-files/{namespace}/[archived-workflows|workflows]/{id}/{nodeId}/[inputs|outputs]/{artifactName}
+//	/artifact-files/{namespace}/[archived-workflows|workflows]/{id}/{nodeId}/[inputs|outputs]/{artifactName}/{fileName}
+//	/artifact-files/{namespace}/[archived-workflows|workflows]/{id}/{nodeId}/[inputs|outputs]/{artifactName}/{fileDir}/.../{fileName}
 //
 // 'id' field represents 'uid' for archived workflows and 'name' for non-archived
 func (a *ArtifactServer) GetArtifactFile(w http.ResponseWriter, r *http.Request) {
@@ -92,10 +99,10 @@ func (a *ArtifactServer) GetArtifactFile(w http.ResponseWriter, r *http.Request)
 	archiveDiscriminator := requestPath[archiveDiscrimIndex]
 	id := requestPath[idIndex] // if archiveDiscriminator == "archived-workflows", this represents workflow UID; if archiveDiscriminator == "workflows", this represents workflow name
 	nodeId := requestPath[nodeIdIndex]
-	direction := requestPath[directionIndex]
+	direction := Direction(requestPath[directionIndex])
 	artifactName := requestPath[artifactNameIndex]
 
-	if direction != "outputs" { // for now we just handle output artifacts
+	if direction != Outputs && direction != Inputs { // for now we handle output and input artifacts
 		a.httpBadRequestError(w)
 		return
 	}
@@ -147,7 +154,9 @@ func (a *ArtifactServer) GetArtifactFile(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	artifact, driver, err := a.getArtifactAndDriver(ctx, nodeId, artifactName, false, wf, fileName)
+	isInput := direction == Inputs
+
+	artifact, driver, err := a.getArtifactAndDriver(ctx, nodeId, artifactName, isInput, wf, fileName)
 	if err != nil {
 		a.serverInternalError(err, w)
 		return
@@ -199,7 +208,7 @@ func (a *ArtifactServer) GetArtifactFile(w http.ResponseWriter, r *http.Request)
 
 		dirs := map[string]bool{} // to de-dupe sub-dirs
 
-		_, _ = w.Write([]byte(fmt.Sprintf("<li><a href=\"%s\">%s</a></li>\n", "..", "..")))
+		_, _ = fmt.Fprintf(w, "<li><a href=\"%s\">%s</a></li>\n", "..", "..")
 
 		for _, object := range objects {
 
@@ -208,11 +217,11 @@ func (a *ArtifactServer) GetArtifactFile(w http.ResponseWriter, r *http.Request)
 
 			// if dir is empty string, we are in the root dir
 			if dir == "" {
-				_, _ = w.Write([]byte(fmt.Sprintf("<li><a href=\"%s\">%s</a></li>\n", file, file)))
+				_, _ = fmt.Fprintf(w, "<li><a href=\"%s\">%s</a></li>\n", file, file)
 			} else if dirs[dir] {
 				continue
 			} else {
-				_, _ = w.Write([]byte(fmt.Sprintf("<li><a href=\"%s\">%s</a></li>\n", dir, dir)))
+				_, _ = fmt.Fprintf(w, "<li><a href=\"%s\">%s</a></li>\n", dir, dir)
 				dirs[dir] = true
 			}
 		}

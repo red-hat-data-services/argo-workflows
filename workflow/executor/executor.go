@@ -80,6 +80,9 @@ type WorkflowExecutor struct {
 
 	annotationPatchTickDuration  time.Duration
 	readProgressFileTickDuration time.Duration
+
+	// flag to indicate if the task result was created
+	taskResultCreated bool
 }
 
 type Initializer interface {
@@ -755,7 +758,7 @@ func (we *WorkflowExecutor) GetSecrets(ctx context.Context, namespace, name, key
 }
 
 // GetTerminationGracePeriodDuration returns the terminationGracePeriodSeconds of podSpec in Time.Duration format
-func getTerminationGracePeriodDuration() time.Duration {
+func GetTerminationGracePeriodDuration() time.Duration {
 	x, _ := strconv.ParseInt(os.Getenv(common.EnvVarTerminationGracePeriodSeconds), 10, 64)
 	if x > 0 {
 		return time.Duration(x) * time.Second
@@ -814,9 +817,7 @@ func (we *WorkflowExecutor) FinalizeOutput(ctx context.Context) {
 			common.LabelKeyReportOutputsCompleted: "true",
 		})
 		if apierr.IsForbidden(err) || apierr.IsNotFound(err) {
-			log.WithError(err).Warn("failed to patch task result, falling back to legacy/insecure pod patch, see https://argo-workflows.readthedocs.io/en/release-3.5/workflow-rbac/")
-			// Only added as a backup in case LabelKeyReportOutputsCompleted could not be set
-			err = we.AddAnnotation(ctx, common.AnnotationKeyReportOutputsCompleted, "true")
+			log.WithError(err).Warn("failed to patch task result, see https://argo-workflows.readthedocs.io/en/latest/workflow-rbac/")
 		}
 		return err
 	})
@@ -835,9 +836,7 @@ func (we *WorkflowExecutor) InitializeOutput(ctx context.Context) {
 	}, errorsutil.IsTransientErr, func() error {
 		err := we.upsertTaskResult(ctx, wfv1.NodeResult{})
 		if apierr.IsForbidden(err) {
-			log.WithError(err).Warn("failed to patch task result, falling back to legacy/insecure pod patch, see https://argo-workflows.readthedocs.io/en/release-3.5/workflow-rbac/")
-			// Only added as a backup in case LabelKeyReportOutputsCompleted could not be set
-			err = we.AddAnnotation(ctx, common.AnnotationKeyReportOutputsCompleted, "false")
+			log.WithError(err).Warn("failed to patch task result, see https://argo-workflows.readthedocs.io/en/latest/workflow-rbac/")
 		}
 		return err
 	})
@@ -863,22 +862,8 @@ func (we *WorkflowExecutor) reportResult(ctx context.Context, result wfv1.NodeRe
 	}, errorsutil.IsTransientErr, func() error {
 		err := we.upsertTaskResult(ctx, result)
 		if apierr.IsForbidden(err) {
-			log.WithError(err).Warn("failed to patch task result, falling back to legacy/insecure pod patch, see https://argo-workflows.readthedocs.io/en/release-3.5/workflow-rbac/")
-			if result.Outputs.HasOutputs() {
-				value, err := json.Marshal(result.Outputs)
-				if err != nil {
-					return err
-				}
-
-				return we.AddAnnotation(ctx, common.AnnotationKeyOutputs, string(value))
-			}
-			if result.Progress.IsValid() { // this may result in occasionally two patches
-				return we.AddAnnotation(ctx, common.AnnotationKeyProgress, string(result.Progress))
-			}
-			// Only added as a backup in case LabelKeyReportOutputsCompleted could not be set
-			return we.AddAnnotation(ctx, common.AnnotationKeyReportOutputsCompleted, "false")
+			log.WithError(err).Warn("failed to patch task result, see https://argo-workflows.readthedocs.io/en/latest/workflow-rbac/")
 		}
-
 		return err
 	})
 }
@@ -960,11 +945,18 @@ func untar(tarPath string, destPath string) error {
 				continue
 			}
 			target := filepath.Join(dest, filepath.Clean(header.Name))
+			if !strings.HasPrefix(target, filepath.Clean(dest)+string(os.PathSeparator)) {
+				return fmt.Errorf("illegal file path: %s", header.Name)
+			}
 			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil && os.IsExist(err) {
 				return err
 			}
 			switch header.Typeflag {
 			case tar.TypeSymlink:
+				linkTarget := filepath.Join(filepath.Dir(target), header.Linkname)
+				if !strings.HasPrefix(filepath.Clean(linkTarget), filepath.Clean(dest)+string(os.PathSeparator)) {
+					return fmt.Errorf("illegal symlink target: %s -> %s", header.Name, header.Linkname)
+				}
 				err := os.Symlink(header.Linkname, target)
 				if err != nil {
 					return err
@@ -1234,7 +1226,7 @@ func (we *WorkflowExecutor) monitorDeadline(ctx context.Context, containerNames 
 
 func (we *WorkflowExecutor) killContainers(ctx context.Context, containerNames []string) {
 	log.Infof("Killing containers")
-	terminationGracePeriodDuration := getTerminationGracePeriodDuration()
+	terminationGracePeriodDuration := GetTerminationGracePeriodDuration()
 	if err := we.RuntimeExecutor.Kill(ctx, containerNames, terminationGracePeriodDuration); err != nil {
 		log.Warnf("Failed to kill %q: %v", containerNames, err)
 	}
