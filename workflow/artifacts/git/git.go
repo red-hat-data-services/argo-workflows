@@ -6,10 +6,12 @@ import (
 	"io"
 	"os"
 	"regexp"
+	"strings"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/protocol/packp/capability"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/go-git/go-git/v5/plumbing/transport/http"
 	ssh2 "github.com/go-git/go-git/v5/plumbing/transport/ssh"
@@ -27,6 +29,7 @@ type ArtifactDriver struct {
 	Password              string
 	SSHPrivateKey         string
 	InsecureIgnoreHostKey bool
+	InsecureSkipTLS       bool
 	DisableSubmodules     bool
 }
 
@@ -84,6 +87,20 @@ func (g *ArtifactDriver) Delete(s *wfv1.Artifact) error {
 
 func (g *ArtifactDriver) Load(inputArtifact *wfv1.Artifact, path string) error {
 	a := inputArtifact.Git
+
+	// Azure DevOps requires multi_ack* capabilities which go-git does not currently support
+	// Workaround: removing these from UnsupportedCapabilities allows clones to work (see https://github.com/go-git/go-git/pull/613)
+	var newCaps []capability.Capability
+	if strings.Contains(a.Repo, "dev.azure.com") {
+		for _, c := range transport.UnsupportedCapabilities {
+			if c == capability.MultiACK || c == capability.MultiACKDetailed {
+				continue
+			}
+			newCaps = append(newCaps, c)
+		}
+		transport.UnsupportedCapabilities = newCaps
+	}
+
 	sshUser := GetUser(a.Repo)
 	closer, auth, err := g.auth(sshUser)
 	if err != nil {
@@ -92,10 +109,11 @@ func (g *ArtifactDriver) Load(inputArtifact *wfv1.Artifact, path string) error {
 	defer closer()
 	depth := a.GetDepth()
 	cloneOptions := &git.CloneOptions{
-		URL:          a.Repo,
-		Auth:         auth,
-		Depth:        depth,
-		SingleBranch: a.SingleBranch,
+		URL:             a.Repo,
+		Auth:            auth,
+		Depth:           depth,
+		SingleBranch:    a.SingleBranch,
+		InsecureSkipTLS: g.InsecureSkipTLS,
 	}
 	if a.SingleBranch && a.Branch == "" {
 		return errors.New("single branch mode without a branch specified")
@@ -133,7 +151,7 @@ func (g *ArtifactDriver) Load(inputArtifact *wfv1.Artifact, path string) error {
 		for i, spec := range a.Fetch {
 			refSpecs[i] = config.RefSpec(spec)
 		}
-		opts := &git.FetchOptions{Auth: auth, RefSpecs: refSpecs, Depth: depth}
+		opts := &git.FetchOptions{Auth: auth, RefSpecs: refSpecs, Depth: depth, InsecureSkipTLS: g.InsecureSkipTLS}
 		if err := opts.Validate(); err != nil {
 			return fmt.Errorf("failed to validate fetch %v: %w", refSpecs, err)
 		}
@@ -151,7 +169,7 @@ func (g *ArtifactDriver) Load(inputArtifact *wfv1.Artifact, path string) error {
 		if a.SingleBranch {
 			refSpecs = []config.RefSpec{config.RefSpec(fmt.Sprintf("refs/heads/%s:refs/heads/%s", a.Branch, a.Branch))}
 		}
-		opts := &git.FetchOptions{Auth: auth, RefSpecs: refSpecs}
+		opts := &git.FetchOptions{Auth: auth, RefSpecs: refSpecs, InsecureSkipTLS: g.InsecureSkipTLS}
 		if err := opts.Validate(); err != nil {
 			return fmt.Errorf("failed to validate fetch %v: %w", refSpecs, err)
 		}
