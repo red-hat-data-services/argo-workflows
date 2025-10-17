@@ -443,7 +443,7 @@ func (woc *wfOperationCtx) executeDAGTask(ctx context.Context, dagCtx *dagContex
 		if tmpl != nil && tmpl.Metrics != nil {
 			if prevNodeStatus, ok := woc.preExecutionNodePhases[node.ID]; ok && !prevNodeStatus.Fulfilled() {
 				localScope, realTimeScope := woc.prepareMetricScope(node)
-				woc.computeMetrics(tmpl.Metrics.Prometheus, localScope, realTimeScope, false)
+				woc.computeMetrics(ctx, tmpl.Metrics.Prometheus, localScope, realTimeScope, false)
 			}
 		}
 
@@ -454,7 +454,7 @@ func (woc *wfOperationCtx) executeDAGTask(ctx context.Context, dagCtx *dagContex
 
 		// Release acquired lock completed task.
 		if processedTmpl != nil {
-			woc.controller.syncManager.Release(woc.wf, node.ID, processedTmpl.Synchronization)
+			woc.controller.syncManager.Release(ctx, woc.wf, node.ID, processedTmpl.Synchronization)
 		}
 
 		scope, err := woc.buildLocalScopeFromTask(dagCtx, task)
@@ -730,9 +730,11 @@ func (woc *wfOperationCtx) resolveDependencyReferences(dagCtx *dagContext, task 
 		return &newTask, nil
 	}
 
+	artifacts := wfv1.Artifacts{}
 	// replace all artifact references
-	for j, art := range newTask.Arguments.Artifacts {
-		if art.From == "" {
+	for _, art := range newTask.Arguments.Artifacts {
+		if art.From == "" && art.FromExpression == "" {
+			artifacts = append(artifacts, art)
 			continue
 		}
 		resolvedArt, err := scope.resolveArtifact(&art)
@@ -744,8 +746,9 @@ func (woc *wfOperationCtx) resolveDependencyReferences(dagCtx *dagContext, task 
 			return nil, err
 		}
 		resolvedArt.Name = art.Name
-		newTask.Arguments.Artifacts[j] = *resolvedArt
+		artifacts = append(artifacts, *resolvedArt)
 	}
+	newTask.Arguments.Artifacts = artifacts
 	return &newTask, nil
 }
 
@@ -858,7 +861,7 @@ func (d *dagContext) evaluateDependsLogic(taskName string) (bool, bool, error) {
 			return false, false, nil
 		}
 
-		evalTaskName := strings.Replace(taskName, "-", "_", -1)
+		evalTaskName := strings.ReplaceAll(taskName, "-", "_")
 		if _, ok := evalScope[evalTaskName]; ok {
 			continue
 		}
@@ -894,7 +897,7 @@ func (d *dagContext) evaluateDependsLogic(taskName string) (bool, bool, error) {
 		}
 	}
 
-	evalLogic := strings.Replace(d.GetTaskDependsLogic(taskName), "-", "_", -1)
+	evalLogic := strings.ReplaceAll(d.GetTaskDependsLogic(taskName), "-", "_")
 	execute, err := argoexpr.EvalBool(evalLogic, evalScope)
 	if err != nil {
 		return false, false, fmt.Errorf("unable to evaluate expression '%s': %s", evalLogic, err)

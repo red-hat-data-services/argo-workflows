@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/argoproj/pkg/cli"
@@ -49,11 +50,19 @@ func NewRootCommand() *cobra.Command {
 	command := cobra.Command{
 		Use:   CLIName,
 		Short: "argoexec is the executor sidecar to workflow containers",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmd.HelpFunc()(cmd, args)
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return cmd.Help()
 		},
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			initConfig()
+
+			// Disable printing of usage string on errors, except for argument validation errors
+			// (i.e. when the "Args" function returns an error).
+			//
+			// This is set here instead of directly in "command" because Cobra
+			// executes PersistentPreRun after performing argument validation:
+			// https://github.com/spf13/cobra/blob/3a5efaede9d389703a792e2f7bfe3a64bc82ced9/command.go#L939-L957
+			cmd.SilenceUsage = true
 		},
 	}
 
@@ -98,7 +107,18 @@ func initExecutor() *executor.WorkflowExecutor {
 	}
 
 	tmpl := &wfv1.Template{}
-	checkErr(json.Unmarshal([]byte(os.Getenv(common.EnvVarTemplate)), tmpl))
+	envVarTemplateValue, ok := os.LookupEnv(common.EnvVarTemplate)
+	// wait container reads template from the file written by init container, instead of from environment variable.
+	if !ok {
+		data, err := os.ReadFile(varRunArgo + "/template")
+		checkErr(err)
+		envVarTemplateValue = string(data)
+	} else if envVarTemplateValue == common.EnvVarTemplateOffloaded {
+		data, err := os.ReadFile(filepath.Join(common.EnvConfigMountPath, common.EnvVarTemplate))
+		checkErr(err)
+		envVarTemplateValue = string(data)
+	}
+	checkErr(json.Unmarshal([]byte(envVarTemplateValue), tmpl))
 
 	includeScriptOutput := os.Getenv(common.EnvVarIncludeScriptOutput) == "true"
 	deadline, err := time.Parse(time.RFC3339, os.Getenv(common.EnvVarDeadline))
