@@ -9,11 +9,17 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/cache"
 
+	"k8s.io/apimachinery/pkg/selection"
+
 	wfv1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
 	wfextvv1alpha1 "github.com/argoproj/argo-workflows/v3/pkg/client/informers/externalversions/workflow/v1alpha1"
 	envutil "github.com/argoproj/argo-workflows/v3/util/env"
 	"github.com/argoproj/argo-workflows/v3/workflow/common"
 	"github.com/argoproj/argo-workflows/v3/workflow/controller/indexes"
+)
+
+var (
+	workflowReq, _ = labels.NewRequirement(common.LabelKeyWorkflow, selection.Exists, nil)
 )
 
 func (wfc *WorkflowController) newWorkflowTaskResultInformer() cache.SharedIndexInformer {
@@ -37,6 +43,7 @@ func (wfc *WorkflowController) newWorkflowTaskResultInformer() cache.SharedIndex
 			options.ResourceVersion = ""
 		},
 	)
+	//nolint:errcheck // the error only happens if the informer was stopped, and it hasn't even started (https://github.com/kubernetes/client-go/blob/46588f2726fa3e25b1704d6418190f424f95a990/tools/cache/shared_informer.go#L580)
 	informer.AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(new interface{}) {
@@ -70,10 +77,11 @@ func (woc *wfOperationCtx) taskResultReconciliation() {
 
 		label := result.Labels[common.LabelKeyReportOutputsCompleted]
 		// If the task result is completed, set the state to true.
-		if label == "true" {
+		switch label {
+		case "true":
 			woc.log.Debugf("Marking task result complete %s", resultName)
 			woc.wf.Status.MarkTaskResultComplete(resultName)
-		} else if label == "false" {
+		case "false":
 			woc.log.Debugf("Marking task result incomplete %s", resultName)
 			woc.wf.Status.MarkTaskResultIncomplete(resultName)
 		}

@@ -113,7 +113,7 @@ Artifacts are packaged as Tarballs and gzipped by default. You may customize thi
 
 ## Artifact Garbage Collection
 
-As of version 3.4 you can configure your Workflow to automatically delete Artifacts that you don't need (visit [artifact repository capability](https://argo-workflows.readthedocs.io/en/release-3.5/configure-artifact-repository/) for the current supported store engine).
+As of version 3.4 you can configure your Workflow to automatically delete Artifacts that you don't need (visit [artifact repository capability](../configure-artifact-repository.md) for the current supported store engine).
 
 Artifacts can be deleted `OnWorkflowCompletion` or `OnWorkflowDeletion`. You can specify your Garbage Collection strategy on both the Workflow level and the Artifact level, so for example, you may have temporary artifacts that can be deleted right away but a final output that should be persisted:
 
@@ -154,6 +154,79 @@ spec:
 ### Artifact Naming
 
 Consider parameterizing your S3 keys by {{workflow.uid}}, etc (as shown in the example above) if there's a possibility that you could have concurrent Workflows of the same spec. This would be to avoid a scenario in which the artifact from one Workflow is being deleted while the same S3 key is being generated for a different Workflow.
+
+In the case of having a whole directory as S3 key, please pay attention to the key value. Here are two examples:
+
+- (A) When changing the default archive option to none, it is important that it ends with a "/". Otherwise, the directory will be created in S3 but the GC pod won't be able to remove it.
+- (B) When keeping the default archive option to `.tgz`, in this case, it is important that it does NOT end with "/". Otherwise, Argo will fail to create the archive file.
+
+Example (A) without packaging as `.tgz`
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: artifact-gc-dir-key-
+spec:
+  entrypoint: main
+  artifactGC:
+    strategy: OnWorkflowDeletion  # default Strategy set here applies to all Artifacts by default
+  templates:
+    - name: main
+      container:
+        image: argoproj/argosay:v2
+        command:
+          - sh
+          - -c
+        args:
+          - |
+            mkdir /tmp/tmp-directory
+            echo "can throw this away" > /tmp/tmp-directory/delete-this.txt
+            echo "and this too" > /tmp/tmp-directory/delete-this-too.txt
+      outputs:
+        artifacts:
+          - name: temporary-artifact
+            path: /tmp/tmp-directory
+            archive:
+              # Avoid having tgz file.
+              none: {}
+            s3:
+              key: "{{workflow.name}}/directory/" # IMPORTANT! ends with "/"
+```
+
+Example (B) with packaging as `.tgz`
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: artifact-gc-dir-key-
+spec:
+  entrypoint: main
+  artifactGC:
+    strategy: OnWorkflowDeletion  # default Strategy set here applies to all Artifacts by default
+  templates:
+    - name: main
+      container:
+        image: argoproj/argosay:v2
+        command:
+          - sh
+          - -c
+        args:
+          - |
+            mkdir /tmp/tmp-directory
+            echo "can throw this away" > /tmp/tmp-directory/delete-this.txt
+            echo "and this too" > /tmp/tmp-directory/delete-this-too.txt
+      outputs:
+        artifacts:
+          - name: temporary-artifact
+            path: /tmp/tmp-directory
+            archive:
+              tar:
+                compressionLevel: 1
+            s3:
+              key: "{{workflow.name}}/archive.tgz" # IMPORTANT! must not end with "/"
+```
 
 ### Service Accounts and Annotations
 
@@ -247,6 +320,7 @@ If the user needs to delete the Workflow and its child CRD objects, they will ne
 ```yaml
 apiVersion: argoproj.io/v1alpha1
 kind: Workflow
+metadata:
   finalizers:
   - workflows.argoproj.io/artifact-gc
 ```

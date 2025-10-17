@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -172,7 +173,7 @@ func (s *workflowServer) ListWorkflows(ctx context.Context, req *workflowpkg.Wor
 	}
 	s.instanceIDService.With(&listOption)
 
-	options, err := sutils.BuildListOptions(listOption, req.Namespace, "")
+	options, err := sutils.BuildListOptions(listOption, req.Namespace, "", req.NameFilter)
 	if err != nil {
 		return nil, err
 	}
@@ -187,7 +188,7 @@ func (s *workflowServer) ListWorkflows(ctx context.Context, req *workflowpkg.Wor
 	}
 
 	var wfs wfv1.Workflows
-	liveWfCount, err := s.wfLister.CountWorkflows(ctx, req.Namespace, "", listOption)
+	liveWfCount, err := s.wfLister.CountWorkflows(ctx, req.Namespace, req.NameFilter, listOption)
 	if err != nil {
 		return nil, sutils.ToStatusError(err, codes.Internal)
 	}
@@ -200,7 +201,7 @@ func (s *workflowServer) ListWorkflows(ctx context.Context, req *workflowpkg.Wor
 	// first fetch live workflows
 	liveWfList := &wfv1.WorkflowList{}
 	if liveWfCount > 0 && (options.Limit == 0 || options.Offset < int(liveWfCount)) {
-		liveWfList, err = s.wfLister.ListWorkflows(ctx, req.Namespace, "", listOption)
+		liveWfList, err = s.wfLister.ListWorkflows(ctx, req.Namespace, req.NameFilter, listOption)
 		if err != nil {
 			return nil, sutils.ToStatusError(err, codes.Internal)
 		}
@@ -418,6 +419,15 @@ func (s *workflowServer) DeleteWorkflow(ctx context.Context, req *workflowpkg.Wo
 	return &workflowpkg.WorkflowDeleteResponse{}, nil
 }
 
+func errorFromChannel(errCh <-chan error) error {
+	select {
+	case err := <-errCh:
+		return err
+	default:
+	}
+	return nil
+}
+
 func (s *workflowServer) RetryWorkflow(ctx context.Context, req *workflowpkg.WorkflowRetryRequest) (*wfv1.Workflow, error) {
 	wfClient := auth.GetWfClient(ctx)
 	kubeClient := auth.GetKubeClient(ctx)
@@ -442,12 +452,25 @@ func (s *workflowServer) RetryWorkflow(ctx context.Context, req *workflowpkg.Wor
 		return nil, sutils.ToStatusError(err, codes.Internal)
 	}
 
+	errCh := make(chan error, len(podsToDelete))
+	var wg sync.WaitGroup
+	wg.Add(len(podsToDelete))
 	for _, podName := range podsToDelete {
 		log.WithFields(log.Fields{"podDeleted": podName}).Info("Deleting pod")
-		err := kubeClient.CoreV1().Pods(wf.Namespace).Delete(ctx, podName, metav1.DeleteOptions{})
-		if err != nil && !apierr.IsNotFound(err) {
-			return nil, sutils.ToStatusError(err, codes.Internal)
-		}
+		go func(podName string) {
+			defer wg.Done()
+			err := kubeClient.CoreV1().Pods(wf.Namespace).Delete(ctx, podName, metav1.DeleteOptions{})
+			if err != nil && !apierr.IsNotFound(err) {
+				errCh <- err
+				return
+			}
+		}(podName)
+	}
+	wg.Wait()
+
+	err = errorFromChannel(errCh)
+	if err != nil {
+		return nil, sutils.ToStatusError(err, codes.Internal)
 	}
 
 	err = s.hydrator.Dehydrate(wf)
@@ -728,7 +751,7 @@ func getLatestWorkflow(ctx context.Context, wfClient versioned.Interface, namesp
 	}
 	latest := wfList.Items[0]
 	for _, wf := range wfList.Items {
-		if latest.ObjectMeta.CreationTimestamp.Before(&wf.ObjectMeta.CreationTimestamp) {
+		if latest.CreationTimestamp.Before(&wf.CreationTimestamp) {
 			latest = wf
 		}
 	}

@@ -1,5 +1,4 @@
 //go:build api
-// +build api
 
 package e2e
 
@@ -66,6 +65,27 @@ func (s *ArgoServerSuite) e() *httpexpect.Expect {
 		})
 }
 
+// Readiness probe is defined in the base manifest:
+// https://github.com/argoproj/argo-workflows/blob/1e2a87f2afdebbcd0e55069df5a945f5faca9d45/manifests/base/argo-server/argo-server-deployment.yaml#L30-L36
+func (s *ArgoServerSuite) TestReadinessProbe() {
+	s.Run("HTTP/1.1 GET", func() {
+		response := s.e().GET("/").
+			WithProto("HTTP/1.1").
+			Expect().
+			Status(200)
+		s.Equal("HTTP/1.1", response.Raw().Proto) //nolint:bodyclose
+	})
+
+	s.Run("HTTP/2 GET", func() {
+		response := s.e().GET("/").
+			WithProto("HTTP/2.0").
+			WithClient(http2Client).
+			Expect().
+			Status(200)
+		s.Equal("HTTP/2.0", response.Raw().Proto) //nolint:bodyclose
+	})
+}
+
 func (s *ArgoServerSuite) TestInfo() {
 	s.Run("Get", func() {
 		json := s.e().GET("/api/v1/info").
@@ -74,27 +94,26 @@ func (s *ArgoServerSuite) TestInfo() {
 			JSON()
 		json.
 			Path("$.managedNamespace").
-			Equal("argo")
+			IsEqual("argo")
 		json.
 			Path("$.links[0].name").
-			Equal("Workflow Link")
+			IsEqual("Workflow Link")
 		json.
 			Path("$.links[0].scope").
-			Equal("workflow")
+			IsEqual("workflow")
 		json.
 			Path("$.links[0].url").
-			Equal("http://logging-facility?namespace=${metadata.namespace}&workflowName=${metadata.name}&startedAt=${status.startedAt}&finishedAt=${status.finishedAt}")
+			IsEqual("http://logging-facility?namespace=${metadata.namespace}&workflowName=${metadata.name}&startedAt=${status.startedAt}&finishedAt=${status.finishedAt}")
 	})
 }
 
 func (s *ArgoServerSuite) TestVersion() {
 	s.Run("Version", func() {
-		s.e().GET("/api/v1/version").
+		resp := s.e().GET("/api/v1/version").
 			Expect().
-			Status(200).
-			JSON().
-			Path("$.version").
-			NotNull()
+			Status(200)
+		resp.JSON().Path("$.version").NotNull()
+		resp.Header("Grpc-Metadata-Argo-Version").NotEmpty()
 	})
 }
 
@@ -133,7 +152,7 @@ func (s *ArgoServerSuite) TestSubmitWorkflowTemplateFromGithubWebhook() {
 	s.bearerToken = ""
 
 	data, err := os.ReadFile("testdata/github-webhook-payload.json")
-	assert.NoError(s.T(), err)
+	s.Require().NoError(err)
 
 	s.Given().
 		WorkflowTemplate(`
@@ -312,7 +331,7 @@ metadata:
 			func(t *testing.T, e []corev1.Event) {
 				assert.Equal(t, "argo", e[0].InvolvedObject.Namespace)
 				assert.Equal(t, "WorkflowEventBindingError", e[0].Reason)
-				assert.Equal(t, "failed to dispatch event: failed to evaluate workflow template expression: unexpected token EOF", e[0].Message)
+				assert.Contains(t, "failed to dispatch event: failed to evaluate workflow template expression: unexpected token EOF", e[0].Message)
 			},
 		)
 }
@@ -339,19 +358,25 @@ func (s *ArgoServerSuite) TestOauth() {
 
 func (s *ArgoServerSuite) TestUnauthorized() {
 	token := s.bearerToken
-	s.T().Run("Bearer", func(t *testing.T) {
+	s.Run("Bearer", func() {
 		s.bearerToken = "test-token"
 		defer func() { s.bearerToken = token }()
 		s.e().GET("/api/v1/workflows/argo").
 			Expect().
-			Status(401)
+			Status(401).
+			// Version header shouldn't be set on 401s for security, since that could be used by attackers to find vulnerable servers
+			Header("Grpc-Metadata-Argo-Version").
+			IsEmpty()
 	})
-	s.T().Run("Basic", func(t *testing.T) {
+	s.Run("Basic", func() {
 		s.username = "garbage"
 		defer func() { s.username = "" }()
 		s.e().GET("/api/v1/workflows/argo").
 			Expect().
-			Status(401)
+			Status(401).
+			// Version header shouldn't be set on 401s for security, since that could be used by attackers to find vulnerable servers
+			Header("Grpc-Metadata-Argo-Version").
+			IsEmpty()
 	})
 }
 
@@ -381,9 +406,9 @@ func (s *ArgoServerSuite) TestMultiCookieAuth() {
 func (s *ArgoServerSuite) createServiceAccount(name string) {
 	ctx := context.Background()
 	_, err := s.KubeClient.CoreV1().ServiceAccounts(fixtures.Namespace).Create(ctx, &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Name: name}}, metav1.CreateOptions{})
-	assert.NoError(s.T(), err)
+	s.Require().NoError(err)
 	secret, err := s.KubeClient.CoreV1().Secrets(fixtures.Namespace).Create(ctx, secrets.NewTokenSecret(name), metav1.CreateOptions{})
-	assert.NoError(s.T(), err)
+	s.Require().NoError(err)
 	s.T().Cleanup(func() {
 		_ = s.KubeClient.CoreV1().Secrets(fixtures.Namespace).Delete(ctx, secret.Name, metav1.DeleteOptions{})
 		_ = s.KubeClient.CoreV1().ServiceAccounts(fixtures.Namespace).Delete(ctx, name, metav1.DeleteOptions{})
@@ -402,11 +427,11 @@ func (s *ArgoServerSuite) TestPermission() {
 	var roleName string
 	s.Run("LoadRoleYaml", func() {
 		obj, err := fixtures.LoadObject("@testdata/argo-server-test-role.yaml")
-		assert.NoError(s.T(), err)
+		s.Require().NoError(err)
 		role, _ := obj.(*rbacv1.Role)
 		roleName = role.Name
 		_, err = s.KubeClient.RbacV1().Roles(nsName).Create(ctx, role, metav1.CreateOptions{})
-		assert.NoError(s.T(), err)
+		s.Require().NoError(err)
 	})
 	defer func() {
 		_ = s.KubeClient.RbacV1().Roles(nsName).Delete(ctx, roleName, metav1.DeleteOptions{})
@@ -425,7 +450,7 @@ func (s *ArgoServerSuite) TestPermission() {
 	}
 	s.Run("CreateRoleBinding", func() {
 		_, err := s.KubeClient.RbacV1().RoleBindings(nsName).Create(ctx, roleBinding, metav1.CreateOptions{})
-		assert.NoError(s.T(), err)
+		s.Require().NoError(err)
 	})
 	defer func() {
 		_ = s.KubeClient.RbacV1().RoleBindings(nsName).Delete(ctx, roleBindingName, metav1.DeleteOptions{})
@@ -439,22 +464,21 @@ func (s *ArgoServerSuite) TestPermission() {
 	var goodToken string
 	s.Run("GetGoodSAToken", func() {
 		sAccount, err := s.KubeClient.CoreV1().ServiceAccounts(nsName).Get(ctx, goodSaName, metav1.GetOptions{})
-		if assert.NoError(s.T(), err) {
-			secretName := secrets.TokenNameForServiceAccount(sAccount)
-			secret, err := s.KubeClient.CoreV1().Secrets(nsName).Get(ctx, secretName, metav1.GetOptions{})
-			assert.NoError(s.T(), err)
-			goodToken = string(secret.Data["token"])
-		}
+		s.Require().NoError(err)
+		secretName := secrets.TokenNameForServiceAccount(sAccount)
+		secret, err := s.KubeClient.CoreV1().Secrets(nsName).Get(ctx, secretName, metav1.GetOptions{})
+		s.Require().NoError(err)
+		goodToken = string(secret.Data["token"])
 	})
 
 	// Get token of bad serviceaccount
 	var badToken string
 	s.Run("GetBadSAToken", func() {
 		sAccount, err := s.KubeClient.CoreV1().ServiceAccounts(nsName).Get(ctx, badSaName, metav1.GetOptions{})
-		assert.NoError(s.T(), err)
+		s.Require().NoError(err)
 		secretName := secrets.TokenNameForServiceAccount(sAccount)
 		secret, err := s.KubeClient.CoreV1().Secrets(nsName).Get(ctx, secretName, metav1.GetOptions{})
-		assert.NoError(s.T(), err)
+		s.Require().NoError(err)
 		badToken = string(secret.Data["token"])
 	})
 
@@ -507,7 +531,7 @@ func (s *ArgoServerSuite) TestPermission() {
 			Path("$.items").
 			Array().
 			Length().
-			Equal(1)
+			IsEqual(1)
 	})
 
 	s.Given().
@@ -782,7 +806,7 @@ func (s *ArgoServerSuite) TestWorkflowService() {
           "name": "run-workflow",
           "container": {
             "image": "argoproj/argosay:v2",
-            "args": ["sleep", "10s"]   
+            "args": ["sleep", "10s"]
           }
         }
       ],
@@ -813,7 +837,7 @@ func (s *ArgoServerSuite) TestWorkflowService() {
 			Path("$.items").
 			Array().
 			Length().
-			Equal(1)
+			IsEqual(1)
 		j.Path("$.items[0].status.nodes").
 			NotNull()
 	})
@@ -831,7 +855,7 @@ func (s *ArgoServerSuite) TestWorkflowService() {
 			Path("$.items").
 			Array().
 			Length().
-			Equal(1)
+			IsEqual(1)
 		j.Path("$.items[0].status").Object().ContainsKey("phase").NotContainsKey("nodes")
 	})
 
@@ -866,7 +890,7 @@ func (s *ArgoServerSuite) TestWorkflowService() {
 			Status(200).
 			JSON().
 			Path("$.spec.suspend").
-			Equal(true)
+			IsEqual(true)
 	})
 
 	s.Run("Resume", func() {
@@ -898,7 +922,7 @@ func (s *ArgoServerSuite) TestWorkflowService() {
 			Status(200).
 			JSON().
 			Path("$.status.message").
-			Equal("Stopped with strategy 'Terminate'")
+			IsEqual("Stopped with strategy 'Terminate'")
 	})
 
 	s.Run("Resubmit", func() {
@@ -959,7 +983,7 @@ func (s *ArgoServerSuite) TestCronWorkflowService() {
 			Status(200).
 			JSON().
 			Path("$.spec.suspend").
-			Equal(true)
+			IsEqual(true)
 	})
 
 	s.Run("Resume", func() {
@@ -1006,7 +1030,7 @@ spec:
 			Path("$.items").
 			Array().
 			Length().
-			Equal(1)
+			IsEqual(1)
 	})
 
 	var resourceVersion string
@@ -1056,7 +1080,7 @@ spec:
 			Status(200).
 			JSON().
 			Path("$.spec.schedule").
-			Equal("1 * * * *")
+			IsEqual("1 * * * *")
 	})
 
 	s.Run("Delete", func() {
@@ -1149,10 +1173,10 @@ func (s *ArgoServerSuite) artifactServerRetrievalTests(name string, uid types.UI
 			Contains(":) Hello Argo!")
 
 		resp.Header("Content-Security-Policy").
-			Equal("sandbox; base-uri 'none'; default-src 'none'; img-src 'self'; style-src 'self' 'unsafe-inline'")
+			IsEqual("sandbox; base-uri 'none'; default-src 'none'; img-src 'self'; style-src 'self' 'unsafe-inline'")
 
 		resp.Header("X-Frame-Options").
-			Equal("SAMEORIGIN")
+			IsEqual("SAMEORIGIN")
 	})
 
 	// In this case, the artifact name is a file
@@ -1165,10 +1189,10 @@ func (s *ArgoServerSuite) artifactServerRetrievalTests(name string, uid types.UI
 			Contains(":) Hello Argo!")
 
 		resp.Header("Content-Security-Policy").
-			Equal("sandbox; base-uri 'none'; default-src 'none'; img-src 'self'; style-src 'self' 'unsafe-inline'")
+			IsEqual("sandbox; base-uri 'none'; default-src 'none'; img-src 'self'; style-src 'self' 'unsafe-inline'")
 
 		resp.Header("X-Frame-Options").
-			Equal("SAMEORIGIN")
+			IsEqual("SAMEORIGIN")
 	})
 
 	// In this case, the artifact name is a directory
@@ -1204,10 +1228,10 @@ func (s *ArgoServerSuite) artifactServerRetrievalTests(name string, uid types.UI
 			Contains(":) Hello Argo!")
 
 		resp.Header("Content-Security-Policy").
-			Equal("sandbox; base-uri 'none'; default-src 'none'; img-src 'self'; style-src 'self' 'unsafe-inline'")
+			IsEqual("sandbox; base-uri 'none'; default-src 'none'; img-src 'self'; style-src 'self' 'unsafe-inline'")
 
 		resp.Header("X-Frame-Options").
-			Equal("SAMEORIGIN")
+			IsEqual("SAMEORIGIN")
 	})
 
 	// In this case, the artifact name is a file
@@ -1252,12 +1276,12 @@ func (s *ArgoServerSuite) artifactServerRetrievalTests(name string, uid types.UI
 func (s *ArgoServerSuite) stream(url string, f func(t *testing.T, line string) (done bool)) {
 	t := s.T()
 	req, err := http.NewRequest("GET", baseUrl+url, nil)
-	assert.NoError(t, err)
+	s.Require().NoError(err)
 	req.Header.Set("Accept", "text/event-stream")
 	req.Header.Set("Authorization", "Bearer "+s.bearerToken)
 	req.Close = true
 	resp, err := httpClient.Do(req)
-	assert.NoError(t, err)
+	s.Require().NoError(err)
 	defer func() {
 		if resp != nil && resp.Body != nil {
 			_ = resp.Body.Close()
@@ -1400,6 +1424,17 @@ spec:
 		SubmitWorkflow().
 		WaitForWorkflow(fixtures.ToBeArchived)
 
+	s.Run("ListWithoutListOptions", func() {
+		s.e().GET("/api/v1/archived-workflows").
+			Expect().
+			Status(200).
+			JSON().
+			Path("$.items").
+			Array().
+			Length().
+			IsEqual(3)
+	})
+
 	for _, tt := range []struct {
 		name     string
 		selector string
@@ -1427,11 +1462,11 @@ spec:
 				Path("$.items")
 
 			if tt.wantLen == 0 {
-				path.Null()
+				path.IsNull()
 			} else {
 				path.Array().
 					Length().
-					Equal(tt.wantLen)
+					IsEqual(tt.wantLen)
 			}
 		})
 	}
@@ -1449,10 +1484,10 @@ spec:
 			Path("$.items").
 			Array().
 			Length().
-			Equal(1)
+			IsEqual(1)
 		j.
 			Path("$.metadata.continue").
-			Equal("1")
+			IsEqual("1")
 	})
 
 	s.Run("ListWithMinStartedAtGood", func() {
@@ -1467,7 +1502,7 @@ spec:
 			Path("$.items").
 			Array().
 			Length().
-			Equal(2)
+			IsEqual(2)
 	})
 
 	s.Run("ListWithMinStartedAtBad", func() {
@@ -1478,7 +1513,7 @@ spec:
 			Expect().
 			Status(200).
 			JSON().
-			Path("$.items").Null()
+			Path("$.items").IsNull()
 	})
 
 	s.Run("Get", func() {
@@ -1494,13 +1529,13 @@ spec:
 			NotNull()
 		j.
 			Path(fmt.Sprintf("$.metadata.labels[\"%s\"]", common.LabelKeyWorkflowArchivingStatus)).
-			Equal("Persisted")
+			IsEqual("Persisted")
 		s.e().GET("/api/v1/workflows/argo/" + name).
 			Expect().
 			Status(200).
 			JSON().
 			Path(fmt.Sprintf("$.metadata.labels[\"%s\"]", common.LabelKeyWorkflowArchivingStatus)).
-			Equal("Archived")
+			IsEqual("Archived")
 	})
 
 	s.Run("DeleteForRetry", func() {
@@ -1564,7 +1599,7 @@ spec:
 			Path("$.items").
 			Array().
 			Length().
-			Equal(1)
+			IsEqual(1)
 	})
 
 }
@@ -1675,7 +1710,7 @@ func (s *ArgoServerSuite) TestWorkflowTemplateService() {
 			Path("$.items").
 			Array().
 			Length().
-			Equal(1)
+			IsEqual(1)
 	})
 
 	var resourceVersion string
@@ -1722,7 +1757,7 @@ func (s *ArgoServerSuite) TestWorkflowTemplateService() {
 			Status(200).
 			JSON().
 			Path("$.spec.templates[0].container.image").
-			Equal("argoproj/argosay:v2")
+			IsEqual("argoproj/argosay:v2")
 	})
 
 	s.Run("Delete", func() {
@@ -1864,7 +1899,7 @@ func (s *ArgoServerSuite) TestEventSourcesService() {
 {
   "eventsource": {
     "metadata": {
-      "name": "test-event-source", 
+      "name": "test-event-source",
       "labels": {
         "workflows.argoproj.io/test": "true"
       }
@@ -1895,7 +1930,7 @@ func (s *ArgoServerSuite) TestEventSourcesService() {
 			Path("$.items").
 			Array().
 			Length().
-			Equal(1)
+			IsEqual(1)
 	})
 	s.Run("WatchEventSources", func() {
 		s.stream("/api/v1/stream/event-sources/argo", func(t *testing.T, line string) (done bool) {
@@ -1927,7 +1962,7 @@ func (s *ArgoServerSuite) TestEventSourcesService() {
 {
   "eventsource": {
     "metadata": {
-      "name": "test-event-source", 
+      "name": "test-event-source",
       "resourceVersion": "` + resourceVersion + `",
       "labels": {
         "workflows.argoproj.io/test": "true"
@@ -1997,7 +2032,7 @@ func (s *ArgoServerSuite) TestSensorService() {
 			Path("$.items").
 			Array().
 			Length().
-			Equal(1)
+			IsEqual(1)
 	})
 	s.Run("GetSensor", func() {
 		s.e().GET("/api/v1/sensors/argo/test-sensor").
@@ -2005,7 +2040,7 @@ func (s *ArgoServerSuite) TestSensorService() {
 			Status(200).
 			JSON().
 			Path("$.metadata.name").
-			Equal("test-sensor")
+			IsEqual("test-sensor")
 	})
 	s.Run("WatchSensors", func() {
 		s.stream("/api/v1/stream/sensors/argo", func(t *testing.T, line string) (done bool) {
@@ -2073,7 +2108,7 @@ func (s *ArgoServerSuite) TestSensorService() {
 			Status(200).
 			JSON().
 			Path("$.spec.template.serviceAccountName").
-			Equal("default")
+			IsEqual("default")
 	})
 	s.Run("DeleteSensor", func() {
 		s.e().DELETE("/api/v1/sensors/argo/test-sensor").
@@ -2091,44 +2126,8 @@ func (s *ArgoServerSuite) TestRateLimitHeader() {
 		resp.Header("X-RateLimit-Limit").NotEmpty()
 		resp.Header("X-RateLimit-Remaining").NotEmpty()
 		resp.Header("X-RateLimit-Reset").NotEmpty()
-		resp.Header("Retry-After").Empty()
+		resp.Header("Retry-After").IsEmpty()
 	})
-}
-
-func (s *ArgoServerSuite) TestPostgresNullBytes() {
-	// only meaningful for postgres, but shouldn't fail  for mysql.
-	var uid types.UID
-	_ = uid
-
-	s.Given().
-		Workflow(`
-metadata:
-  generateName: archie-
-  labels:
-    foo: 1
-spec:
-  entrypoint: run-archie
-  templates:
-    - name: run-archie
-      container:
-        image: argoproj/argosay:v2
-        args: [echo, "hello \u0000"]`).
-		When().
-		SubmitWorkflow().
-		WaitForWorkflow(fixtures.ToBeArchived).
-		Then().
-		ExpectWorkflow(func(t *testing.T, metadata *metav1.ObjectMeta, status *wfv1.WorkflowStatus) {
-			uid = metadata.UID
-		})
-
-	j := s.e().GET("/api/v1/archived-workflows/{uid}", uid).
-		Expect().
-		Status(200).
-		JSON()
-	j.
-		Path("$.spec.templates[0].container.args[1]").
-		IsEqual("hello \u0000")
-
 }
 
 func TestArgoServerSuite(t *testing.T) {
