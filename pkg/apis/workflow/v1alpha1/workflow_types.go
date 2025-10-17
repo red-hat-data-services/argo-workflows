@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"regexp"
 	"runtime"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -26,7 +27,6 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	argoerrs "github.com/argoproj/argo-workflows/v3/errors"
-	"github.com/argoproj/argo-workflows/v3/util/slice"
 )
 
 // TemplateType is the type of a template
@@ -162,9 +162,9 @@ type Workflows []Workflow
 func (w Workflows) Len() int      { return len(w) }
 func (w Workflows) Swap(i, j int) { w[i], w[j] = w[j], w[i] }
 func (w Workflows) Less(i, j int) bool {
-	iStart := w[i].ObjectMeta.CreationTimestamp
+	iStart := w[i].CreationTimestamp
 	iFinish := w[i].Status.FinishedAt
-	jStart := w[j].ObjectMeta.CreationTimestamp
+	jStart := w[j].CreationTimestamp
 	jFinish := w[j].Status.FinishedAt
 	if iFinish.IsZero() && jFinish.IsZero() {
 		return !iStart.Before(&jStart)
@@ -230,7 +230,7 @@ func (w *Workflow) GetArtifactGCStrategy(a *Artifact) ArtifactGCStrategy {
 var (
 	WorkflowCreatedAfter = func(t time.Time) WorkflowPredicate {
 		return func(wf Workflow) bool {
-			return wf.ObjectMeta.CreationTimestamp.After(t)
+			return wf.CreationTimestamp.After(t)
 		}
 	}
 	WorkflowFinishedBefore = func(t time.Time) WorkflowPredicate {
@@ -240,7 +240,7 @@ var (
 	}
 	WorkflowRanBetween = func(startTime time.Time, endTime time.Time) WorkflowPredicate {
 		return func(wf Workflow) bool {
-			return wf.ObjectMeta.CreationTimestamp.After(startTime) && !wf.Status.FinishedAt.IsZero() && wf.Status.FinishedAt.Time.Before(endTime)
+			return wf.CreationTimestamp.After(startTime) && !wf.Status.FinishedAt.IsZero() && wf.Status.FinishedAt.Time.Before(endTime)
 		}
 	}
 )
@@ -501,7 +501,7 @@ func (wf *Workflow) GetSemaphoreKeys() []string {
 	if wf.Spec.WorkflowTemplateRef == nil {
 		templates = wf.Spec.Templates
 		if wf.Spec.Synchronization != nil {
-			if configMapRef := wf.Spec.Synchronization.getSemaphoreConfigMapRef(); configMapRef != nil {
+			for _, configMapRef := range wf.Spec.Synchronization.getSemaphoreConfigMapRefs() {
 				key := fmt.Sprintf("%s/%s", namespace, configMapRef.Name)
 				keyMap[key] = true
 			}
@@ -509,7 +509,7 @@ func (wf *Workflow) GetSemaphoreKeys() []string {
 	} else if wf.Status.StoredWorkflowSpec != nil {
 		templates = wf.Status.StoredWorkflowSpec.Templates
 		if wf.Status.StoredWorkflowSpec.Synchronization != nil {
-			if configMapRef := wf.Status.StoredWorkflowSpec.Synchronization.getSemaphoreConfigMapRef(); configMapRef != nil {
+			for _, configMapRef := range wf.Status.StoredWorkflowSpec.Synchronization.getSemaphoreConfigMapRefs() {
 				key := fmt.Sprintf("%s/%s", namespace, configMapRef.Name)
 				keyMap[key] = true
 			}
@@ -518,7 +518,7 @@ func (wf *Workflow) GetSemaphoreKeys() []string {
 
 	for _, tmpl := range templates {
 		if tmpl.Synchronization != nil {
-			if configMapRef := tmpl.Synchronization.getSemaphoreConfigMapRef(); configMapRef != nil {
+			for _, configMapRef := range tmpl.Synchronization.getSemaphoreConfigMapRefs() {
 				key := fmt.Sprintf("%s/%s", namespace, configMapRef.Name)
 				keyMap[key] = true
 			}
@@ -990,6 +990,10 @@ func (a *Artifact) CleanPath() error {
 		return argoerrs.InternalErrorf("Artifact '%s' did not specify a path", a.Name)
 	}
 
+	// ensure path is separated by filepath.Separator (aka os.PathSeparator).
+	// This ensures e.g. on windows /foo/bar is translated to \foo\bar first - otherwise the regexps below wouldn't trigger.
+	path := filepath.FromSlash(a.Path)
+
 	// Ensure that the artifact path does not use directory traversal to escape a
 	// "safe" sub-directory, assuming malicious user input is present. For example:
 	// inputs:
@@ -1006,12 +1010,12 @@ func (a *Artifact) CleanPath() error {
 	}
 
 	slashDotDotSlash := fmt.Sprintf(`%c..%c`, os.PathSeparator, os.PathSeparator)
-	if strings.Contains(a.Path, slashDotDotSlash) {
-		safeDir = a.Path[:strings.Index(a.Path, slashDotDotSlash)]
-	} else if slashDotDotRe.FindStringIndex(a.Path) != nil {
-		safeDir = a.Path[:len(a.Path)-3]
+	if strings.Contains(path, slashDotDotSlash) {
+		safeDir = path[:strings.Index(path, slashDotDotSlash)]
+	} else if slashDotDotRe.FindStringIndex(path) != nil {
+		safeDir = path[:len(path)-3]
 	}
-	cleaned := filepath.Clean(a.Path)
+	cleaned := filepath.Clean(path)
 	safeDirWithSlash := fmt.Sprintf(`%s%c`, safeDir, os.PathSeparator)
 	if len(safeDir) > 0 && (!strings.HasPrefix(cleaned, safeDirWithSlash) || len(cleaned) <= len(safeDirWithSlash)) {
 		return argoerrs.InternalErrorf("Artifact '%s' attempted to use a path containing '..'. Directory traversal is not permitted", a.Name)
@@ -1189,7 +1193,7 @@ func (a *ArtifactLocation) Get() (ArtifactLocationType, error) {
 	} else if a.S3 != nil {
 		return a.S3, nil
 	}
-	return nil, fmt.Errorf("You need to configure artifact storage. More information on how to do this can be found in the docs: https://argo-workflows.readthedocs.io/en/release-3.5/configure-artifact-repository/")
+	return nil, fmt.Errorf("You need to configure artifact storage. More information on how to do this can be found in the docs: https://argo-workflows.readthedocs.io/en/latest/configure-artifact-repository/")
 }
 
 // SetType sets the type of the artifact to type the argument.
@@ -1644,34 +1648,28 @@ type TemplateRef struct {
 
 // Synchronization holds synchronization lock configuration
 type Synchronization struct {
-	// Semaphore holds the Semaphore configuration
+	// Semaphore holds the Semaphore configuration - deprecated, use semaphores instead
 	Semaphore *SemaphoreRef `json:"semaphore,omitempty" protobuf:"bytes,1,opt,name=semaphore"`
-	// Mutex holds the Mutex lock details
+	// Mutex holds the Mutex lock details - deprecated, use mutexes instead
 	Mutex *Mutex `json:"mutex,omitempty" protobuf:"bytes,2,opt,name=mutex"`
+	// v3.6 and after: Semaphores holds the list of Semaphores configuration
+	Semaphores []*SemaphoreRef `json:"semaphores,omitempty" protobuf:"bytes,3,opt,name=semaphores"`
+	// v3.6 and after: Mutexes holds the list of Mutex lock details
+	Mutexes []*Mutex `json:"mutexes,omitempty" protobuf:"bytes,4,opt,name=mutexes"`
 }
 
-func (s *Synchronization) getSemaphoreConfigMapRef() *apiv1.ConfigMapKeySelector {
+func (s *Synchronization) getSemaphoreConfigMapRefs() []*apiv1.ConfigMapKeySelector {
+	selectors := make([]*apiv1.ConfigMapKeySelector, 0)
 	if s.Semaphore != nil && s.Semaphore.ConfigMapKeyRef != nil {
-		return s.Semaphore.ConfigMapKeyRef
+		selectors = append(selectors, s.Semaphore.ConfigMapKeyRef)
 	}
-	return nil
-}
 
-type SynchronizationType string
-
-const (
-	SynchronizationTypeSemaphore SynchronizationType = "Semaphore"
-	SynchronizationTypeMutex     SynchronizationType = "Mutex"
-	SynchronizationTypeUnknown   SynchronizationType = "Unknown"
-)
-
-func (s *Synchronization) GetType() SynchronizationType {
-	if s.Semaphore != nil {
-		return SynchronizationTypeSemaphore
-	} else if s.Mutex != nil {
-		return SynchronizationTypeMutex
+	for _, semaphore := range s.Semaphores {
+		if semaphore.ConfigMapKeyRef != nil {
+			selectors = append(selectors, semaphore.ConfigMapKeyRef)
+		}
 	}
-	return SynchronizationTypeUnknown
+	return selectors
 }
 
 // SemaphoreRef is a reference of Semaphore
@@ -2381,7 +2379,7 @@ func (ws *WorkflowStatus) GetDuration() time.Duration {
 	if ws.FinishedAt.IsZero() {
 		return 0
 	}
-	return ws.FinishedAt.Time.Sub(ws.StartedAt.Time)
+	return ws.FinishedAt.Sub(ws.StartedAt.Time)
 }
 
 // Pending returns whether or not the node is in pending state
@@ -2525,6 +2523,9 @@ type S3Bucket struct {
 	// SecretKeySecret is the secret selector to the bucket's secret key
 	SecretKeySecret *apiv1.SecretKeySelector `json:"secretKeySecret,omitempty" protobuf:"bytes,6,opt,name=secretKeySecret"`
 
+	// SessionTokenSecret is used for ephemeral credentials like an IAM assume role or S3 access grant
+	SessionTokenSecret *apiv1.SecretKeySelector `json:"sessionTokenSecret,omitempty" protobuf:"bytes,12,opt,name=sessionTokenSecret"`
+
 	// RoleARN is the Amazon Resource Name (ARN) of the role to assume.
 	RoleARN string `json:"roleARN,omitempty" protobuf:"bytes,7,opt,name=roleARN"`
 
@@ -2617,6 +2618,9 @@ type GitArtifact struct {
 
 	// Branch is the branch to fetch when `SingleBranch` is enabled
 	Branch string `json:"branch,omitempty" protobuf:"bytes,11,opt,name=branch"`
+
+	// InsecureSkipTLS disables server certificate verification resulting in insecure HTTPS connections
+	InsecureSkipTLS bool `json:"insecureSkipTLS,omitempty" protobuf:"varint,12,opt,name=insecureSkipTLS"`
 }
 
 func (g *GitArtifact) HasLocation() bool {
@@ -2749,6 +2753,10 @@ type HDFSConfig struct {
 	// HDFSUser is the user to access HDFS file system.
 	// It is ignored if either ccache or keytab is used.
 	HDFSUser string `json:"hdfsUser,omitempty" protobuf:"bytes,3,opt,name=hdfsUser"`
+
+	// DataTransferProtection is the protection level for HDFS data transfer.
+	// It corresponds to the dfs.data.transfer.protection configuration in HDFS.
+	DataTransferProtection string `json:"dataTransferProtection,omitempty" protobuf:"bytes,4,opt,name=dataTransferProtection"`
 }
 
 // HDFSKrbConfig is auth configurations for Kerberos
@@ -3416,12 +3424,12 @@ func (wf *Workflow) GetWorkflowSpec() WorkflowSpec {
 
 // NodeID creates a deterministic node ID based on a node name
 func (wf *Workflow) NodeID(name string) string {
-	if name == wf.ObjectMeta.Name {
-		return wf.ObjectMeta.Name
+	if name == wf.Name {
+		return wf.Name
 	}
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(name))
-	return fmt.Sprintf("%s-%v", wf.ObjectMeta.Name, h.Sum32())
+	return fmt.Sprintf("%s-%v", wf.Name, h.Sum32())
 }
 
 // GetStoredTemplate retrieves a template from stored templates of the workflow.
@@ -3617,7 +3625,7 @@ func (p *Prometheus) SetValueString(val string) {
 	}
 }
 
-func (p *Prometheus) GetDesc() string {
+func (p *Prometheus) GetKey() string {
 	// This serves as a hash for the metric
 	// TODO: Make sure this is what we want to use as the hash
 	labels := p.GetMetricLabels()
@@ -3783,7 +3791,7 @@ func (ss *SemaphoreStatus) LockAcquired(holderKey, lockKey string, currentHolder
 	if i < 0 {
 		ss.Holding = append(ss.Holding, SemaphoreHolding{Semaphore: lockKey, Holders: []string{holdingName}})
 		return true
-	} else if !slice.ContainsString(semaphoreHolding.Holders, holdingName) {
+	} else if !slices.Contains(semaphoreHolding.Holders, holdingName) {
 		semaphoreHolding.Holders = append(semaphoreHolding.Holders, holdingName)
 		ss.Holding[i] = semaphoreHolding
 		return true
@@ -3796,7 +3804,8 @@ func (ss *SemaphoreStatus) LockReleased(holderKey, lockKey string) bool {
 	holdingName := holderKey
 
 	if i >= 0 {
-		semaphoreHolding.Holders = slice.RemoveString(semaphoreHolding.Holders, holdingName)
+		semaphoreHolding.Holders = slices.DeleteFunc(semaphoreHolding.Holders,
+			func(x string) bool { return x == holdingName })
 		ss.Holding[i] = semaphoreHolding
 		return true
 	}
@@ -3904,6 +3913,14 @@ type SynchronizationStatus struct {
 	// Mutex stores this workflow's mutex holder details
 	Mutex *MutexStatus `json:"mutex,omitempty" protobuf:"bytes,2,opt,name=mutex"`
 }
+
+type SynchronizationType string
+
+const (
+	SynchronizationTypeSemaphore SynchronizationType = "Semaphore"
+	SynchronizationTypeMutex     SynchronizationType = "Mutex"
+	SynchronizationTypeUnknown   SynchronizationType = "Unknown"
+)
 
 func (ss *SynchronizationStatus) GetStatus(syncType SynchronizationType) SynchronizationAction {
 	switch syncType {

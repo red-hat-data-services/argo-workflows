@@ -11,6 +11,7 @@ import (
 	argos3 "github.com/argoproj/pkg/s3"
 	"github.com/minio/minio-go/v7"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	wfv1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
 )
@@ -136,7 +137,7 @@ func TestOpenStreamS3Artifact(t *testing.T) {
 		"Success": {
 			s3client: newMockS3Client(
 				map[string][]string{
-					"my-bucket": []string{
+					"my-bucket": {
 						"/folder/hello-art.tar.gz",
 					},
 				},
@@ -162,7 +163,7 @@ func TestOpenStreamS3Artifact(t *testing.T) {
 		"No such key": {
 			s3client: newMockS3Client(
 				map[string][]string{
-					"my-bucket": []string{
+					"my-bucket": {
 						"/folder/hello-art-2.tar.gz",
 					},
 				},
@@ -179,7 +180,7 @@ func TestOpenStreamS3Artifact(t *testing.T) {
 		"Is Directory": {
 			s3client: newMockS3Client(
 				map[string][]string{
-					"my-bucket": []string{
+					"my-bucket": {
 						"/folder/hello-art-2.tar.gz",
 					},
 				},
@@ -196,7 +197,7 @@ func TestOpenStreamS3Artifact(t *testing.T) {
 		"Test Directory Failed": {
 			s3client: newMockS3Client(
 				map[string][]string{
-					"my-bucket": []string{
+					"my-bucket": {
 						"/folder/hello-art-2.tar.gz",
 					},
 				},
@@ -215,7 +216,7 @@ func TestOpenStreamS3Artifact(t *testing.T) {
 		},
 	}
 
-	_ = os.Setenv(transientEnvVarKey, "this error is transient")
+	t.Setenv(transientEnvVarKey, "this error is transient")
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			stream, err := streamS3Artifact(tc.s3client, &wfv1.Artifact{
@@ -229,15 +230,14 @@ func TestOpenStreamS3Artifact(t *testing.T) {
 				},
 			})
 			if tc.errMsg == "" {
-				assert.Nil(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, stream)
 			} else {
-				assert.NotNil(t, err)
+				require.Error(t, err)
 				assert.Equal(t, tc.errMsg, err.Error())
 			}
 		})
 	}
-	_ = os.Unsetenv(transientEnvVarKey)
 }
 
 // Delete deletes an S3 artifact by artifact key
@@ -257,7 +257,7 @@ func TestLoadS3Artifact(t *testing.T) {
 		"Success": {
 			s3client: newMockS3Client(
 				map[string][]string{
-					"my-bucket": []string{
+					"my-bucket": {
 						"/folder/hello-art.tar.gz",
 					},
 				},
@@ -285,7 +285,7 @@ func TestLoadS3Artifact(t *testing.T) {
 		"No such key": {
 			s3client: newMockS3Client(
 				map[string][]string{
-					"my-bucket": []string{
+					"my-bucket": {
 						"/folder/hello-art-2.tar.gz",
 					},
 				},
@@ -303,7 +303,7 @@ func TestLoadS3Artifact(t *testing.T) {
 		"Is Directory": {
 			s3client: newMockS3Client(
 				map[string][]string{
-					"my-bucket": []string{
+					"my-bucket": {
 						"/folder/hello-art-2.tar.gz",
 					},
 				},
@@ -321,7 +321,7 @@ func TestLoadS3Artifact(t *testing.T) {
 		"Get File Other Transient Error": {
 			s3client: newMockS3Client(
 				map[string][]string{
-					"my-bucket": []string{
+					"my-bucket": {
 						"/folder/hello-art-2.tar.gz",
 					},
 				},
@@ -339,7 +339,7 @@ func TestLoadS3Artifact(t *testing.T) {
 		"Test Directory Failed": {
 			s3client: newMockS3Client(
 				map[string][]string{
-					"my-bucket": []string{
+					"my-bucket": {
 						"/folder/hello-art-2.tar.gz",
 					},
 				},
@@ -360,7 +360,7 @@ func TestLoadS3Artifact(t *testing.T) {
 		"Get Directory Failed": {
 			s3client: newMockS3Client(
 				map[string][]string{
-					"my-bucket": []string{
+					"my-bucket": {
 						"/folder/hello-art-2.tar.gz",
 					},
 				},
@@ -380,7 +380,7 @@ func TestLoadS3Artifact(t *testing.T) {
 		},
 	}
 
-	_ = os.Setenv(transientEnvVarKey, "this error is transient")
+	t.Setenv(transientEnvVarKey, "this error is transient")
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			success, err := loadS3Artifact(tc.s3client, &wfv1.Artifact{
@@ -397,11 +397,10 @@ func TestLoadS3Artifact(t *testing.T) {
 			if err != nil {
 				assert.Equal(t, tc.errMsg, err.Error())
 			} else {
-				assert.Equal(t, tc.errMsg, "")
+				assert.Empty(t, tc.errMsg)
 			}
 		})
 	}
-	_ = os.Unsetenv(transientEnvVarKey)
 }
 
 func TestSaveS3Artifact(t *testing.T) {
@@ -435,7 +434,7 @@ func TestSaveS3Artifact(t *testing.T) {
 		"Success as Directory": {
 			s3client: newMockS3Client(
 				map[string][]string{
-					"my-bucket": []string{},
+					"my-bucket": {},
 				},
 				map[string]error{}),
 			bucket:    "my-bucket",
@@ -509,7 +508,7 @@ func TestSaveS3Artifact(t *testing.T) {
 	}
 
 	for name, tc := range tests {
-		_ = os.Setenv(transientEnvVarKey, "this error is transient")
+		t.Setenv(transientEnvVarKey, "this error is transient")
 		t.Run(name, func(t *testing.T) {
 			success, err := saveS3Artifact(
 				tc.s3client,
@@ -532,10 +531,9 @@ func TestSaveS3Artifact(t *testing.T) {
 			if err != nil {
 				assert.Equal(t, tc.errMsg, err.Error())
 			} else {
-				assert.Equal(t, tc.errMsg, "")
+				assert.Empty(t, tc.errMsg)
 			}
 		})
-		_ = os.Unsetenv(transientEnvVarKey)
 	}
 }
 
@@ -552,7 +550,7 @@ func TestListObjects(t *testing.T) {
 		"Found objects": {
 			s3client: newMockS3Client(
 				map[string][]string{
-					"my-bucket": []string{
+					"my-bucket": {
 						"/folder/hello-art.tar.gz",
 					},
 				},
@@ -565,7 +563,7 @@ func TestListObjects(t *testing.T) {
 		"Empty directory": {
 			s3client: newMockS3Client(
 				map[string][]string{
-					"my-bucket": []string{
+					"my-bucket": {
 						"/folder",
 					},
 				},
@@ -578,7 +576,7 @@ func TestListObjects(t *testing.T) {
 		"Non-existent directory": {
 			s3client: newMockS3Client(
 				map[string][]string{
-					"my-bucket": []string{
+					"my-bucket": {
 						"/folder",
 					},
 				},
@@ -590,7 +588,7 @@ func TestListObjects(t *testing.T) {
 		},
 	}
 
-	_ = os.Setenv(transientEnvVarKey, "this error is transient")
+	t.Setenv(transientEnvVarKey, "this error is transient")
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			_, files, err := listObjects(tc.s3client,
@@ -609,13 +607,12 @@ func TestListObjects(t *testing.T) {
 					},
 				})
 			if tc.expectedSuccess {
-				assert.Nil(t, err)
-				assert.Equal(t, tc.expectedNumFiles, len(files))
+				require.NoError(t, err)
+				assert.Len(t, files, tc.expectedNumFiles)
 			} else {
-				assert.NotNil(t, err)
+				require.Error(t, err)
 				assert.Equal(t, tc.expectedErrMsg, err.Error())
 			}
 		})
 	}
-	_ = os.Unsetenv(transientEnvVarKey)
 }
