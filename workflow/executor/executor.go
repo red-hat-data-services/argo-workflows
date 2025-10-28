@@ -1240,6 +1240,7 @@ func (we *WorkflowExecutor) killContainers(ctx context.Context, containerNames [
 	}
 }
 
+// TODO(gfrasca): foo comment for diff only (testing)
 func (we *WorkflowExecutor) Init() error {
 	if i, ok := we.RuntimeExecutor.(Initializer); ok {
 		return i.Init(we.Template)
