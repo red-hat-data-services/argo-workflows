@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -316,6 +317,10 @@ func TestUntar(t *testing.T) {
 }
 
 func TestChmod(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping chmod test on Windows - permission model differs from Unix")
+	}
+
 	type perm struct {
 		dir  string
 		file string
@@ -370,6 +375,10 @@ func TestChmod(t *testing.T) {
 func TestSaveArtifacts(t *testing.T) {
 	fakeClientset := fake.NewSimpleClientset()
 	mockRuntimeExecutor := mocks.ContainerRuntimeExecutor{}
+
+	// Set up mock expectations for CopyFile method
+	mockRuntimeExecutor.On("CopyFile", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("int")).Return(nil)
+
 	mockTaskResultClient := argofake.NewSimpleClientset().ArgoprojV1alpha1().WorkflowTaskResults(fakeNamespace)
 	templateWithOutParam := wfv1.Template{
 		Inputs: wfv1.Inputs{
