@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"os/exec"
+	"runtime"
 	"testing"
 	"time"
 
@@ -11,7 +12,19 @@ import (
 )
 
 func TestSimpleStartCloser(t *testing.T) {
-	cmd := exec.Command("sh", "-c", `echo "A123456789B123456789C123456789D123456789E123456789\c"`)
+	var cmd *exec.Cmd
+	var expectedOutput string
+
+	if runtime.GOOS == "windows" {
+		// Use PowerShell on Windows to write output without newline
+		cmd = exec.Command("powershell", "-Command", `Write-Host -NoNewline "A123456789B123456789C123456789D123456789E123456789"`)
+		expectedOutput = "A123456789B123456789C123456789D123456789E123456789"
+	} else {
+		// Use shell echo with \c flag on Unix systems
+		cmd = exec.Command("sh", "-c", `echo "A123456789B123456789C123456789D123456789E123456789\c"`)
+		expectedOutput = "A123456789B123456789C123456789D123456789E123456789"
+	}
+
 	var stdoutWriter bytes.Buffer
 	slowWriter := SlowWriter{
 		&stdoutWriter,
@@ -28,7 +41,7 @@ func TestSimpleStartCloser(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	closer()
 
-	assert.Equal(t, "A123456789B123456789C123456789D123456789E123456789", stdoutWriter.String())
+	assert.Equal(t, expectedOutput, stdoutWriter.String())
 }
 
 type SlowWriter struct {

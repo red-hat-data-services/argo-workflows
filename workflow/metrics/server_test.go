@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -30,7 +32,14 @@ func TestDisableMetricsServer(t *testing.T) {
 	}
 
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "connection refused") // expect that the metrics server not to start
+
+	// Check for connection refused error message (different on Windows vs Unix)
+	errMsg := strings.ToLower(err.Error())
+	if runtime.GOOS == "windows" {
+		assert.True(t, strings.Contains(errMsg, "refused") || strings.Contains(errMsg, "connection") || strings.Contains(errMsg, "target machine"), "Expected connection refused error, got: %s", err.Error())
+	} else {
+		assert.Contains(t, errMsg, "connection refused", "Expected connection refused error, got: %s", err.Error())
+	}
 }
 
 func TestMetricsServer(t *testing.T) {

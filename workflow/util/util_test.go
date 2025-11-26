@@ -1059,6 +1059,10 @@ func TestFormulateRetryWorkflow(t *testing.T) {
 		}
 		_, err := wfClient.Create(ctx, wf, metav1.CreateOptions{})
 		assert.NoError(t, err)
+
+		// Add a small delay to ensure StartedAt time will be different when retrying
+		time.Sleep(1 * time.Millisecond)
+
 		wf, _, err = FormulateRetryWorkflow(ctx, wf, false, "", nil)
 		if assert.NoError(t, err) {
 			assert.Equal(t, wfv1.WorkflowRunning, wf.Status.Phase)
