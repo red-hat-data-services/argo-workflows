@@ -1,15 +1,20 @@
 owners:
-- alexec
-- sarabala1979
-
-reviewers:
-- juliev0
-- tczhao
-
+  - accorvin
+  - dsp-developers
+  - gmfrasca
+  - HumairAK
+  - mprahl
+  - terrytangyuan
 approvers:
-- alexec
-- alexmt
-- edlee2121
-- jessesuen
-- simster7
-- terrytangyuan
+  - accorvin
+  - dsp-developers
+  - gmfrasca
+  - HumairAK
+  - mprahl
+reviewers:
+  - gmfrasca
+  - hbelmiro
+  - HumairAK
+  - VaniHaripriya
+  - mprahl
+emeritus_approvers: []
