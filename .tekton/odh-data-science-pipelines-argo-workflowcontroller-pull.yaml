@@ -25,7 +25,7 @@ spec:
   - name: revision
     value: '{{revision}}'
   - name: pr-number
-    value: "$(metadata.annotations['build.appstudio.redhat.com/pull_request_number'])"
+    value: "{{pull_request.number}}"
   - name: output-image
     value: quay.io/opendatahub/ds-pipelines-argo-workflowcontroller:odh-pr-$(params.pr-number)
   - name: dockerfile
