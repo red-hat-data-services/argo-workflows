@@ -24,24 +24,18 @@ spec:
   - name: revision
     value: '{{revision}}'
   - name: output-image
-    value: quay.io/opendatahub/ds-pipelines-argo-argoexec:odh-pr-{{revision}}
+    value: quay.io/opendatahub/ds-pipelines-argo-argoexec:odh-stable
   - name: dockerfile
     value: argo-argoexec/Dockerfile.ODH
   - name: path-context
     value: .
-  - name: build-platforms
-    value:
-    - linux/x86_64
-  - name: additional-tags
-    value:
-    - '{{target_branch}}-{{revision}}'
   pipelineRef:
     resolver: git
     params:
     - name: url
       value: https://github.com/opendatahub-io/odh-konflux-central.git
     - name: revision
-      value: 'main'
+      value: main
     - name: pathInRepo
       value: pipeline/multi-arch-container-build.yaml
   taskRunTemplate:
