@@ -16,7 +16,7 @@ metadata:
     appstudio.openshift.io/application: opendatahub-builds
     appstudio.openshift.io/component: odh-data-science-pipelines-argo-workflowcontroller
     pipelines.appstudio.openshift.io/type: build
-  name: odh-data-science-pipelines-argo-workflowcontroller-on-pull
+  name: odh-data-science-pipelines-argo-workflowcontroller-on-pull-request
   namespace: open-data-hub-tenant
 spec:
   params:
@@ -27,17 +27,14 @@ spec:
   - name: pr-number
     value: "{{pull_request.number}}"
   - name: output-image
-    value: quay.io/opendatahub/ds-pipelines-argo-workflowcontroller:odh-pr-$(params.pr-number)
+    value: quay.io/opendatahub/ds-pipelines-argo-workflowcontroller:odh-pr
   - name: dockerfile
     value: argo-workflowcontroller/Dockerfile.ODH
   - name: path-context
     value: .
-  - name: build-platforms
+ - name: additional-tags
     value:
-    - linux/x86_64
-  - name: additional-tags
-    value:
-    - '{{target_branch}}-{{revision}}'
+    - 'odh-pr-{{revision}}'
   - name: pipeline-type
     value: pull-request
   pipelineRef:
