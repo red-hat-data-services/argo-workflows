@@ -14,7 +14,7 @@ metadata:
   creationTimestamp: null
   labels:
     appstudio.openshift.io/application: opendatahub-builds
-    appstudio.openshift.io/component: odh-data-science-pipelines-argo-workflowcontroller
+    appstudio.openshift.io/component: odh-data-science-pipelines-argo-workflowcontroller-ci
     pipelines.appstudio.openshift.io/type: build
   name: odh-data-science-pipelines-argo-workflowcontroller-on-pull-request
   namespace: open-data-hub-tenant
@@ -32,7 +32,7 @@ spec:
     value: argo-workflowcontroller/Dockerfile.ODH
   - name: path-context
     value: .
- - name: additional-tags
+  - name: additional-tags
     value:
     - 'odh-pr-{{revision}}'
   - name: pipeline-type
