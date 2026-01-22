@@ -33,10 +33,6 @@ spec:
   - name: prefetch-input
     value: |
       [{"type": "gomod"}, {"type": "rpm"}]
-  - name: additional-labels
-    value:
-    - version=v2.16.2
-    - io.openshift.tags=odh-data-science-pipelines-argo-argoexec
   - name: additional-tags
     value:
     - '{{target_branch}}-{{revision}}'
@@ -48,6 +44,8 @@ spec:
     value: "false"
   - name: build-image-index
     value: "false"
+  - name: rhoai-version
+    value: "2.16.4"
   pipelineRef:
     resolver: git
     params:
