@@ -29,9 +29,9 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-go@v4
+      - uses: actions/setup-go@v5
         with:
-          go-version: "1.21"
+          go-version-file: go.mod
           cache: true
       - run: make test STATIC_FILES=false GOTEST='go test -p 20 -covermode=atomic -coverprofile=coverage.out'
       # engineers just ignore this in PRs, so lets not even run it
@@ -106,9 +106,9 @@ jobs:
         # needed by Kubernetes v1.25
         run: sudo apt-get -y install socat
       - uses: actions/checkout@v3
-      - uses: actions/setup-go@v4
+      - uses: actions/setup-go@v5
         with:
-          go-version: "1.21"
+          go-version-file: go.mod
           cache: true
       - uses: actions/setup-java@v3
         if: ${{matrix.test == 'test-java-sdk'}}
@@ -209,9 +209,9 @@ jobs:
       GOPATH: /home/runner/go
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-go@v4
+      - uses: actions/setup-go@v5
         with:
-          go-version: "1.21"
+          go-version-file: go.mod
           cache: true
       - name: Install protoc
         run: |
@@ -230,6 +230,8 @@ jobs:
         run: |
           mkdir -p /home/runner/go/src/github.com/argoproj
           ln -s "$PWD" /home/runner/go/src/github.com/argoproj/argo-workflows
+      - name: Install controller-gen with Go 1.21 toolchain
+        run: GOTOOLCHAIN=go1.21.5 go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.4.1
       - run: make codegen -B STATIC_FILES=false
       - run: git diff --exit-code
 
@@ -242,9 +244,9 @@ jobs:
       GOPATH: /home/runner/go
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-go@v4
+      - uses: actions/setup-go@v5
         with:
-          go-version: "1.21"
+          go-version-file: go.mod
           cache: true
       - run: make lint STATIC_FILES=false
       - run: git diff --exit-code

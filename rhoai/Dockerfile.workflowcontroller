@@ -7,7 +7,7 @@ ARG GIT_COMMIT=unknown
 ARG GIT_TAG=unknown
 ARG GIT_TREE_STATE=unknown
 
-FROM registry.redhat.io/ubi8/go-toolset:1.21 as builder
+FROM registry.access.redhat.com/ubi8/go-toolset:1.25@sha256:070a8b01fe3c47cda74390c49c37e0abde1157c162cc3a46be1698564a18f923 as builder
 
 # Build args to be used at this step
 ARG SOURCE_CODE
