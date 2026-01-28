@@ -281,9 +281,9 @@ swagger: \
 
 
 $(GOPATH)/bin/mockery:
-	go install github.com/vektra/mockery/v2@v2.26.0
+	go install github.com/vektra/mockery/v2@v2.53.5
 $(GOPATH)/bin/controller-gen:
-	go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.4.1
+	GOTOOLCHAIN=go1.21.5 go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.4.1
 $(GOPATH)/bin/go-to-protobuf:
 	go install k8s.io/code-generator/cmd/go-to-protobuf@v0.21.5
 $(GOPATH)/src/github.com/gogo/protobuf:
