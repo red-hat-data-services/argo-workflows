@@ -121,7 +121,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-      - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
+      - uses: actions/setup-go@v5 # v5.0.0
         with:
           go-version-file: go.mod
           cache: true
@@ -145,7 +145,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-      - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
+      - uses: actions/setup-go@v5 # v5.0.0
         with:
           go-version-file: go.mod
           cache: true
@@ -250,7 +250,7 @@ jobs:
       - name: Install socat (needed by Kubernetes v1.25)
         run: sudo apt-get -y install socat
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-      - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
+      - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           cache: true
@@ -397,7 +397,7 @@ jobs:
       GOPATH: /home/runner/go
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-      - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
+      - uses: actions/setup-go@v5 # v5.0.0
         with:
           go-version-file: go.mod
           cache: true
