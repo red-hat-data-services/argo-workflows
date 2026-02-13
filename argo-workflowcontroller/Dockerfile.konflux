@@ -31,7 +31,8 @@ FROM registry.redhat.io/ubi9/ubi-minimal@sha256:759f5f42d9d6ce2a705e290b7fc549e2
 ARG CI_CONTAINER_VERSION
 
 LABEL com.redhat.component="odh-data-science-pipelines-argo-workflowcontroller-container" \
-      name="managed-open-data-hub/odh-data-science-pipelines-argo-workflowcontroller-rhel8" \
+      name="rhoai/odh-data-science-pipelines-argo-workflowcontroller-rhel9" \
+      cpe="cpe:/a:redhat:openshift_ai:2.22::el9" \
       description="Argo Workflow Controller for Argo Workflows used in Data Science Pipelines" \
       summary="odh-data-science-pipelines-argo-workflowcontroller" \
       maintainer="['managed-open-data-hub@redhat.com']" \
