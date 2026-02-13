@@ -31,7 +31,8 @@ FROM registry.redhat.io/ubi8/ubi-minimal@sha256:48adecc91f276734fa51987bc2203a31
 ARG CI_CONTAINER_VERSION
 
 LABEL com.redhat.component="odh-data-science-pipelines-argo-argoexec-container" \
-      name="managed-open-data-hub/odh-data-science-pipelines-argo-argoexec-rhel8" \
+      name="rhoai/odh-data-science-pipelines-argo-argoexec-rhel8" \
+      cpe="cpe:/a:redhat:openshift_ai:2.19::el8" \
       description="Argo Executor for Argo Workflows used in Data Science Pipelines" \
       summary="odh-data-science-pipelines-argo-argoexec" \
       maintainer="['managed-open-data-hub@redhat.com']" \
