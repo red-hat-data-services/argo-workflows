@@ -25,7 +25,7 @@ RUN git config --global --add safe.directory /workspace
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build make dist/workflow-controller GIT_COMMIT=${GIT_COMMIT} GIT_TAG=${GIT_TAG} GIT_TREE_STATE=${GIT_TREE_STATE}
 
 ####################################################################################################
-FROM registry.redhat.io/ubi8/ubi-minimal@sha256:69c5a7ae39a5ab42160d4c6dd6014360a65659541766129225dc0402a41b2825 AS workflow-controller
+FROM registry.redhat.io/ubi8/ubi-minimal@sha256:815d4b55a154d9863c84f37298f4ebd2ae131bb244824996824138fc6c4b4b7d AS workflow-controller
 
 
 ARG CI_CONTAINER_VERSION
