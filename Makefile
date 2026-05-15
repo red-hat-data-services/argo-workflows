@@ -3,6 +3,8 @@ export SHELLOPTS:=$(if $(SHELLOPTS),$(SHELLOPTS):)pipefail:errexit
 
 # NOTE: Please ensure dependencies are synced with the flake.nix file in dev/nix/flake.nix before upgrading
 # any external dependency. There is documentation on how to do this under the Developer Guide
+#
+# No-op (PR #625): same Makefile path as PR #623 — dependency pins unchanged on this branch.
 
 USE_NIX := false
 # https://stackoverflow.com/questions/4122831/disable-make-builtin-rules-and-variables-from-inside-the-make-file

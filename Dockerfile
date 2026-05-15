@@ -1,4 +1,5 @@
 #syntax=docker/dockerfile:1.2
+# No-op (PR #625): same file set as PR #623 — Alpine/golang builder tag unchanged.
 ARG GIT_COMMIT=unknown
 ARG GIT_TAG=unknown
 ARG GIT_TREE_STATE=unknown

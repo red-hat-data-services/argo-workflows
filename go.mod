@@ -1,5 +1,7 @@
 module github.com/argoproj/argo-workflows/v3
 
+// No-op (PR #625 control branch): touches same paths as PR #623 — go directive unchanged here.
+
 go 1.24.4
 
 require (

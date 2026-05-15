@@ -1,3 +1,4 @@
+# No-op (PR #625): comment-only — same workflow path as PR #623; logic unchanged.
 name: Release
 
 on:
