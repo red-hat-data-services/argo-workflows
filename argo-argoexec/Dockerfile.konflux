@@ -25,7 +25,7 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
 
 
 ####################################################################################################
-FROM registry.redhat.io/ubi8/ubi-minimal@sha256:f0ed53122215c6cccdc992166caa9f6b56c08b202e8b1144dd1c2ad04579415d AS argoexec
+FROM registry.redhat.io/ubi8/ubi-minimal@sha256:f2e5ee35da5f4dc16770d4319f1753c9b20fc859a98240d804197f1818332a89 AS argoexec
 
 
 ARG CI_CONTAINER_VERSION
