@@ -5,7 +5,7 @@ ARG GIT_COMMIT=unknown
 ARG GIT_TAG=unknown
 ARG GIT_TREE_STATE=unknown
 
-FROM registry.access.redhat.com/ubi9/go-toolset:1.26@sha256:b2c0898987b688a95f4d2f38abdfd929f45903948831783153019ab749495c72 as builder
+FROM registry.access.redhat.com/ubi9/go-toolset:1.26.3@sha256:d36470d5258da00f618b7aca9bdaab8e05134aa938bd6c42d9bd17d50ed45e76 as builder
 
 # Build args to be used at this step
 ARG SOURCE_CODE
@@ -21,8 +21,7 @@ COPY ${SOURCE_CODE}/ ./
 # Set the /workspace directory as safe for Git
 RUN git config --global --add safe.directory /workspace
 
-RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build GIT_COMMIT=${GIT_COMMIT} GIT_TAG=${GIT_TAG} GIT_TREE_STATE=${GIT_TREE_STATE} CGO_ENABLED=1 GOEXPERIMENT=strictfipsruntime go build -tags strictfipsruntime -v  -o dist/argoexec-fips ./cmd/argoexec
-RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build GIT_COMMIT=${GIT_COMMIT} GIT_TAG=${GIT_TAG} GIT_TREE_STATE=${GIT_TREE_STATE} CGO_ENABLED=0 go build -ldflags '-extldflags -static' -v  -o dist/argoexec ./cmd/argoexec
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build GIT_COMMIT=${GIT_COMMIT} GIT_TAG=${GIT_TAG} GIT_TREE_STATE=${GIT_TREE_STATE} CGO_ENABLED=0 GOTOOLCHAIN=local GOFIPS140=v1.0.0 go build -tags no_openssl -ldflags '-extldflags -static' -v  -o dist/argoexec ./cmd/argoexec
 
 ####################################################################################################
 FROM registry.redhat.io/ubi9/ubi-minimal@sha256:8d905a93f1392d4a8f7fb906bd49bf540290674b28d82de3536bb4d0898bf9d7 AS workflow-controller
@@ -43,12 +42,11 @@ LABEL com.redhat.component="odh-data-science-pipelines-argo-argoexec-container" 
 WORKDIR /bin
 
 COPY --from=builder /workspace/dist/argoexec /bin/
-COPY --from=builder /workspace/dist/argoexec-fips /bin/
 COPY --from=builder /etc/mime.types /etc/mime.types
 COPY --from=builder /workspace/hack/ssh_known_hosts /etc/ssh/
 COPY --from=builder /workspace/hack/nsswitch.conf /etc/
 
-RUN chmod +x /bin/argoexec && chmod +x /bin/argoexec-fips
+RUN chmod +x /bin/argoexec
 
 USER 2000
 
