@@ -24,7 +24,7 @@ RUN git config --global --add safe.directory /workspace
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build GIT_COMMIT=${GIT_COMMIT} GIT_TAG=${GIT_TAG} GIT_TREE_STATE=${GIT_TREE_STATE} CGO_ENABLED=0 GOTOOLCHAIN=local GOFIPS140=v1.0.0 go build -tags no_openssl -ldflags '-extldflags -static' -v  -o dist/argoexec ./cmd/argoexec
 
 ####################################################################################################
-FROM registry.redhat.io/ubi9/ubi-minimal@sha256:062c52ff973065752b0965787649db2bcf551a6c727a00e95a3eb42cebadbdab AS workflow-controller
+FROM registry.redhat.io/ubi9/ubi-minimal@sha256:6c79f4fb38a20d496c859025d57e4074835e849d5d14819c4e021ad78446bce8 AS workflow-controller
 
 
 ARG CI_CONTAINER_VERSION
