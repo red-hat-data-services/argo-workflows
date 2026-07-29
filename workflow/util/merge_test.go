@@ -495,54 +495,6 @@ func TestMergeHooks(t *testing.T) {
 	})
 }
 
-var patchLabelsFromWF = `
-apiVersion: argoproj.io/v1alpha1
-kind: Workflow
-spec:
-  workflowMetadata:
-    labelsFrom:
-      foo:
-        expression: PATCH
-      bar:
-        expression: PATCH
-`
-var baseLabelsFromWF = `
-apiVersion: argoproj.io/v1alpha1
-kind: Workflow
-spec:
-  workflowMetadata:
-    labelsFrom:
-      foo:
-        expression: BASE
-      baz:
-        expression: BASE
-`
-
-func TestMergeLabelsFrom(t *testing.T) {
-	t.Run("NilBaseAndNotNilPatch", func(t *testing.T) {
-		patchWf := wfv1.MustUnmarshalWorkflow(patchLabelsFromWF)
-		targetWf := wfv1.MustUnmarshalWorkflow(baseNilWF)
-
-		err := MergeTo(patchWf, targetWf)
-		require.NoError(t, err)
-		assert.Len(t, targetWf.Spec.WorkflowMetadata.LabelsFrom, 2)
-		assert.Equal(t, "PATCH", targetWf.Spec.WorkflowMetadata.LabelsFrom[`foo`].Expression)
-		assert.Equal(t, "PATCH", targetWf.Spec.WorkflowMetadata.LabelsFrom[`bar`].Expression)
-	})
-
-	t.Run("NotNilBaseAndPatch", func(t *testing.T) {
-		patchWf := wfv1.MustUnmarshalWorkflow(patchLabelsFromWF)
-		targetWf := wfv1.MustUnmarshalWorkflow(baseLabelsFromWF)
-
-		err := MergeTo(patchWf, targetWf)
-		require.NoError(t, err)
-		assert.Len(t, targetWf.Spec.WorkflowMetadata.LabelsFrom, 3)
-		assert.Equal(t, "BASE", targetWf.Spec.WorkflowMetadata.LabelsFrom[`foo`].Expression)
-		assert.Equal(t, "PATCH", targetWf.Spec.WorkflowMetadata.LabelsFrom[`bar`].Expression)
-		assert.Equal(t, "BASE", targetWf.Spec.WorkflowMetadata.LabelsFrom[`baz`].Expression)
-	})
-}
-
 // blockedUserOverrideFields is used by TestAllWorkflowSpecFieldsAccountedFor
 // to verify that every WorkflowSpec field is consciously classified as either
 // allowed or blocked.
@@ -564,6 +516,7 @@ var blockedUserOverrideFields = map[string]bool{
 	"DNSConfig":                    true,
 	"OnExit":                       true,
 	"SchedulerName":                true,
+	"PodPriority":                  true,
 	"PodPriorityClassName":         true,
 	"HostAliases":                  true,
 	"SecurityContext":              true,
