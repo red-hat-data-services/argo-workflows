@@ -162,9 +162,9 @@ type Workflows []Workflow
 func (w Workflows) Len() int      { return len(w) }
 func (w Workflows) Swap(i, j int) { w[i], w[j] = w[j], w[i] }
 func (w Workflows) Less(i, j int) bool {
-	iStart := w[i].ObjectMeta.CreationTimestamp
+	iStart := w[i].CreationTimestamp
 	iFinish := w[i].Status.FinishedAt
-	jStart := w[j].ObjectMeta.CreationTimestamp
+	jStart := w[j].CreationTimestamp
 	jFinish := w[j].Status.FinishedAt
 	if iFinish.IsZero() && jFinish.IsZero() {
 		return !iStart.Before(&jStart)
@@ -230,7 +230,7 @@ func (w *Workflow) GetArtifactGCStrategy(a *Artifact) ArtifactGCStrategy {
 var (
 	WorkflowCreatedAfter = func(t time.Time) WorkflowPredicate {
 		return func(wf Workflow) bool {
-			return wf.ObjectMeta.CreationTimestamp.After(t)
+			return wf.CreationTimestamp.After(t)
 		}
 	}
 	WorkflowFinishedBefore = func(t time.Time) WorkflowPredicate {
@@ -240,7 +240,7 @@ var (
 	}
 	WorkflowRanBetween = func(startTime time.Time, endTime time.Time) WorkflowPredicate {
 		return func(wf Workflow) bool {
-			return wf.ObjectMeta.CreationTimestamp.After(startTime) && !wf.Status.FinishedAt.IsZero() && wf.Status.FinishedAt.Time.Before(endTime)
+			return wf.CreationTimestamp.After(startTime) && !wf.Status.FinishedAt.IsZero() && wf.Status.FinishedAt.Time.Before(endTime)
 		}
 	}
 )
@@ -999,6 +999,9 @@ func (a *Artifact) CleanPath() error {
 	//
 	// Any resolved path should always be within the /tmp/safe/ directory.
 	safeDir := ""
+	// ensure path is separated by filepath.Separator (aka os.PathSeparator).
+	// This ensures e.g. on windows /foo/bar is translated to \foo\bar first - otherwise the regexps below wouldn't trigger.
+	path := filepath.FromSlash(a.Path)
 	slashDotDotRe := regexp.MustCompile(fmt.Sprintf(`%c..$`, os.PathSeparator))
 	if runtime.GOOS == "windows" {
 		// windows PathSeparator is \ and needs escaping
@@ -1006,12 +1009,12 @@ func (a *Artifact) CleanPath() error {
 	}
 
 	slashDotDotSlash := fmt.Sprintf(`%c..%c`, os.PathSeparator, os.PathSeparator)
-	if strings.Contains(a.Path, slashDotDotSlash) {
-		safeDir = a.Path[:strings.Index(a.Path, slashDotDotSlash)]
-	} else if slashDotDotRe.FindStringIndex(a.Path) != nil {
-		safeDir = a.Path[:len(a.Path)-3]
+	if strings.Contains(path, slashDotDotSlash) {
+		safeDir = path[:strings.Index(path, slashDotDotSlash)]
+	} else if slashDotDotRe.FindStringIndex(path) != nil {
+		safeDir = path[:len(path)-3]
 	}
-	cleaned := filepath.Clean(a.Path)
+	cleaned := filepath.Clean(path)
 	safeDirWithSlash := fmt.Sprintf(`%s%c`, safeDir, os.PathSeparator)
 	if len(safeDir) > 0 && (!strings.HasPrefix(cleaned, safeDirWithSlash) || len(cleaned) <= len(safeDirWithSlash)) {
 		return argoerrs.InternalErrorf("Artifact '%s' attempted to use a path containing '..'. Directory traversal is not permitted", a.Name)
@@ -2381,7 +2384,7 @@ func (ws *WorkflowStatus) GetDuration() time.Duration {
 	if ws.FinishedAt.IsZero() {
 		return 0
 	}
-	return ws.FinishedAt.Time.Sub(ws.StartedAt.Time)
+	return ws.FinishedAt.Sub(ws.StartedAt.Time)
 }
 
 // Pending returns whether or not the node is in pending state
@@ -3416,12 +3419,12 @@ func (wf *Workflow) GetWorkflowSpec() WorkflowSpec {
 
 // NodeID creates a deterministic node ID based on a node name
 func (wf *Workflow) NodeID(name string) string {
-	if name == wf.ObjectMeta.Name {
-		return wf.ObjectMeta.Name
+	if name == wf.Name {
+		return wf.Name
 	}
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(name))
-	return fmt.Sprintf("%s-%v", wf.ObjectMeta.Name, h.Sum32())
+	return fmt.Sprintf("%s-%v", wf.Name, h.Sum32())
 }
 
 // GetStoredTemplate retrieves a template from stored templates of the workflow.

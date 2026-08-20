@@ -20,7 +20,6 @@ import (
 	"github.com/argoproj/argo-workflows/v3/persist/sqldb"
 	"github.com/argoproj/argo-workflows/v3/persist/sqldb/mocks"
 	workflowarchivepkg "github.com/argoproj/argo-workflows/v3/pkg/apiclient/workflowarchive"
-	"github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
 	wfv1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
 	argofake "github.com/argoproj/argo-workflows/v3/pkg/client/clientset/versioned/fake"
 	"github.com/argoproj/argo-workflows/v3/server/auth"
@@ -34,7 +33,7 @@ func Test_archivedWorkflowServer(t *testing.T) {
 	wfClient := &argofake.Clientset{}
 	offloadNodeStatusRepo := &mocks.OffloadNodeStatusRepo{}
 	offloadNodeStatusRepo.On("IsEnabled", mock.Anything).Return(true)
-	offloadNodeStatusRepo.On("List", mock.Anything).Return(map[sqldb.UUIDVersion]v1alpha1.Nodes{}, nil)
+	offloadNodeStatusRepo.On("List", mock.Anything).Return(map[sqldb.UUIDVersion]wfv1.Nodes{}, nil)
 	w := NewWorkflowArchiveServer(repo, offloadNodeStatusRepo)
 	allowed := true
 	kubeClient.AddReactor("create", "selfsubjectaccessreviews", func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
@@ -168,7 +167,7 @@ func Test_archivedWorkflowServer(t *testing.T) {
 		resp, err = w.ListArchivedWorkflows(ctx, &workflowarchivepkg.ListArchivedWorkflowsRequest{ListOptions: &metav1.ListOptions{FieldSelector: "metadata.name=my-name,spec.startedAt>2020-01-01T00:00:00Z,spec.startedAt<2020-01-02T00:00:00Z,ext.showRemainingItemCount=true", Limit: 1}, NamePrefix: "my-"})
 		if assert.NoError(t, err) {
 			assert.Len(t, resp.Items, 1)
-			assert.Equal(t, *resp.ListMeta.RemainingItemCount, int64(4))
+			assert.Equal(t, int64(4), *resp.RemainingItemCount)
 			assert.Empty(t, resp.Continue)
 		}
 		/////// Currently, for the purpose of backward compatibility, namespace is supported both as its own query parameter and as part of the field selector
@@ -246,7 +245,7 @@ func Test_archivedWorkflowServer(t *testing.T) {
 		assert.False(t, matchLabelKeyPattern("wrong key"))
 		resp, err = w.ListArchivedWorkflowLabelValues(ctx, &workflowarchivepkg.ListArchivedWorkflowLabelValuesRequest{ListOptions: &metav1.ListOptions{LabelSelector: "my-key"}})
 		assert.NoError(t, err)
-		assert.Len(t, resp.Items, 0)
+		assert.Empty(t, resp.Items)
 		_ = os.Unsetenv(disableValueListRetrievalKeyPattern)
 	})
 	t.Run("RetryArchivedWorkflow", func(t *testing.T) {

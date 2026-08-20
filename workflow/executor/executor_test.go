@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -197,7 +198,7 @@ func TestDefaultParameters(t *testing.T) {
 	ctx := context.Background()
 	err := we.SaveParameters(ctx)
 	assert.NoError(t, err)
-	assert.Equal(t, we.Template.Outputs.Parameters[0].Value.String(), "Default Value")
+	assert.Equal(t, "Default Value", we.Template.Outputs.Parameters[0].Value.String())
 }
 
 func TestDefaultParametersEmptyString(t *testing.T) {
@@ -228,7 +229,7 @@ func TestDefaultParametersEmptyString(t *testing.T) {
 	ctx := context.Background()
 	err := we.SaveParameters(ctx)
 	assert.NoError(t, err)
-	assert.Equal(t, "", we.Template.Outputs.Parameters[0].Value.String())
+	assert.Empty(t, we.Template.Outputs.Parameters[0].Value.String())
 }
 
 func TestIsTarball(t *testing.T) {
@@ -316,6 +317,10 @@ func TestUntar(t *testing.T) {
 }
 
 func TestChmod(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("chmod permission strings differ on Windows")
+	}
+
 	type perm struct {
 		dir  string
 		file string
@@ -376,7 +381,7 @@ func TestSaveArtifacts(t *testing.T) {
 			Artifacts: []wfv1.Artifact{
 				{
 					Name: "samedir",
-					Path: "/samedir",
+					Path: string(os.PathSeparator) + "samedir",
 				},
 			},
 		},
@@ -384,7 +389,7 @@ func TestSaveArtifacts(t *testing.T) {
 			Artifacts: []wfv1.Artifact{
 				{
 					Name:     "samedir",
-					Path:     "/samedir",
+					Path:     string(os.PathSeparator) + "samedir",
 					Optional: true,
 				},
 			},
@@ -395,7 +400,7 @@ func TestSaveArtifacts(t *testing.T) {
 			Artifacts: []wfv1.Artifact{
 				{
 					Name: "samedir",
-					Path: "/samedir",
+					Path: string(os.PathSeparator) + "samedir",
 				},
 			},
 		},
@@ -403,7 +408,7 @@ func TestSaveArtifacts(t *testing.T) {
 			Artifacts: []wfv1.Artifact{
 				{
 					Name:     "samedir",
-					Path:     "/samedir",
+					Path:     string(os.PathSeparator) + "samedir",
 					Optional: false,
 				},
 			},
@@ -414,7 +419,7 @@ func TestSaveArtifacts(t *testing.T) {
 			Artifacts: []wfv1.Artifact{
 				{
 					Name: "samedir",
-					Path: "/samedir",
+					Path: string(os.PathSeparator) + "samedir",
 				},
 			},
 		},
@@ -422,7 +427,7 @@ func TestSaveArtifacts(t *testing.T) {
 			Artifacts: []wfv1.Artifact{
 				{
 					Name:     "samedir",
-					Path:     "/samedir",
+					Path:     string(os.PathSeparator) + "samedir",
 					Optional: true,
 					Archive: &wfv1.ArchiveStrategy{
 						Zip: &wfv1.ZipStrategy{},
@@ -474,10 +479,10 @@ func TestSaveArtifacts(t *testing.T) {
 		ctx := context.Background()
 		_, err := tt.workflowExecutor.SaveArtifacts(ctx)
 		if err != nil {
-			assert.Equal(t, tt.expectError, true)
+			assert.True(t, tt.expectError)
 			continue
 		}
-		assert.Equal(t, tt.expectError, false)
+		assert.False(t, tt.expectError)
 	}
 }
 
@@ -558,7 +563,7 @@ func TestReportOutputs(t *testing.T) {
 		artifacts := []wfv1.Artifact{
 			{
 				Name: "samedir",
-				Path: "/samedir",
+				Path: string(os.PathSeparator) + "samedir",
 			},
 		}
 		templateWithArtifacts := wfv1.Template{
@@ -575,7 +580,7 @@ func TestReportOutputs(t *testing.T) {
 		ctx := context.Background()
 		err := we.ReportOutputs(ctx, artifacts)
 
-		assert.Equal(t, err, nil)
+		assert.NoError(t, err)
 		assert.Empty(t, we.errors)
 	})
 
