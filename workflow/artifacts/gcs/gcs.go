@@ -12,7 +12,6 @@ import (
 	"cloud.google.com/go/storage"
 	"github.com/argoproj/pkg/file"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/oauth2/google"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
@@ -77,11 +76,10 @@ func (g *ArtifactDriver) newGCSClient() (*storage.Client, error) {
 
 func newGCSClientWithCredential(serviceAccountJSON string) (*storage.Client, error) {
 	ctx := context.Background()
-	creds, err := google.CredentialsFromJSON(ctx, []byte(serviceAccountJSON), storage.ScopeReadWrite)
-	if err != nil {
-		return nil, fmt.Errorf("GCS client CredentialsFromJSON: %w", err)
-	}
-	client, err := storage.NewClient(ctx, option.WithCredentials(creds))
+	client, err := storage.NewClient(ctx,
+		option.WithCredentialsJSON([]byte(serviceAccountJSON)),
+		option.WithScopes(storage.ScopeReadWrite),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("GCS storage.NewClient with credential: %w", err)
 	}
