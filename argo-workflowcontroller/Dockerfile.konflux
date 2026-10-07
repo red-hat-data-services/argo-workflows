@@ -25,7 +25,7 @@ RUN git config --global --add safe.directory /workspace
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build  GIT_COMMIT=${GIT_COMMIT} GIT_TAG=${GIT_TAG} GIT_TREE_STATE=${GIT_TREE_STATE} GOTOOLCHAIN=local CGO_ENABLED=0 GOFIPS140=v1.0.0 go build  -tags no_openssl -v  -o dist/workflow-controller ./cmd/workflow-controller
 
 ####################################################################################################
-FROM registry.redhat.io/ubi9/ubi-minimal-pqc@sha256:e8673bd338b3f093501a9a9088f043d8959df120edd9947583e2d9bb3aacc3a8 AS workflow-controller
+FROM registry.redhat.io/ubi9/ubi-minimal-pqc@sha256:d34666200b64d5a183c867487fd2f48ee8547eb18134e5647099970e26f08af9 AS workflow-controller
 
 
 ARG CI_CONTAINER_VERSION
