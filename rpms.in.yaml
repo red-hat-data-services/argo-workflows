@@ -2,9 +2,14 @@ arches:
   - x86_64
   - aarch64
   - ppc64le
+# UBI content is public; inline repos so rpm-lockfile-prototype resolves from CDN.
+# Conforma requires arch-qualified repo IDs (ubi-10-for-$basearch-…).
 contentOrigin:
-  repofiles:
-    - ubi.repo
+  repos:
+    - repoid: ubi-10-for-$basearch-baseos-rpms
+      baseurl: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi10/10/$basearch/baseos/os/
+    - repoid: ubi-10-for-$basearch-baseos-source-rpms
+      baseurl: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi10/10/$basearch/baseos/source/SRPMS/
 packages:
   - mailcap
 context:
