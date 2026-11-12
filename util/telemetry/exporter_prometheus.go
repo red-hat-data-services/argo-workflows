@@ -8,6 +8,7 @@ import (
 	"time"
 
 	promgo "github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/otlptranslator"
 	"go.opentelemetry.io/otel/exporters/prometheus"
 
 	// "github.com/prometheus/client_golang/prometheus/collectors"
@@ -30,8 +31,7 @@ func (config *Config) prometheusMetricsExporter(namespace string) (*prometheus.E
 	// in the legacy version, so they cannot be here
 	return prometheus.New(
 		prometheus.WithNamespace(namespace),
-		prometheus.WithoutCounterSuffixes(),
-		prometheus.WithoutUnits(),
+		prometheus.WithTranslationStrategy(otlptranslator.UnderscoreEscapingWithoutSuffixes),
 		prometheus.WithoutScopeInfo(),
 		prometheus.WithoutTargetInfo(),
 	)

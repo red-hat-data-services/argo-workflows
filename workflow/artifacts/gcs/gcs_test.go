@@ -7,10 +7,31 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"google.golang.org/api/googleapi"
 
 	argoErrors "github.com/argoproj/argo-workflows/v3/errors"
 )
+
+func TestNewGCSClientWithCredential(t *testing.T) {
+	t.Run("service account", func(t *testing.T) {
+		client, err := newGCSClientWithCredential(`{"type":"service_account","project_id":"test-project","client_email":"test@test-project.iam.gserviceaccount.com"}`)
+		require.NoError(t, err)
+		require.NoError(t, client.Close())
+	})
+	for _, credentialType := range []string{"authorized_user", "external_account", "impersonated_service_account"} {
+		t.Run(credentialType, func(t *testing.T) {
+			client, err := newGCSClientWithCredential(fmt.Sprintf(`{"type":%q}`, credentialType))
+			require.ErrorContains(t, err, `expected credential type "service_account"`)
+			require.Nil(t, client)
+		})
+	}
+	t.Run("invalid JSON", func(t *testing.T) {
+		client, err := newGCSClientWithCredential("invalid")
+		require.Error(t, err)
+		require.Nil(t, client)
+	})
+}
 
 type tlsHandshakeTimeoutError struct{}
 

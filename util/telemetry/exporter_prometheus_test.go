@@ -11,12 +11,36 @@ import (
 	"testing"
 	"time"
 
+	promgo "github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/metric"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 )
 
 // testScopeName is the name that the metrics running under test will have
 const testScopeName string = "argo-workflows-test"
+
+func TestPrometheusMetricNames(t *testing.T) {
+	registry := promgo.NewRegistry()
+	previousRegisterer := promgo.DefaultRegisterer
+	promgo.DefaultRegisterer = registry
+	t.Cleanup(func() { promgo.DefaultRegisterer = previousRegisterer })
+
+	exporter, err := (&Config{}).prometheusMetricsExporter("argo")
+	require.NoError(t, err)
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(exporter))
+	t.Cleanup(func() { require.NoError(t, provider.Shutdown(context.Background())) })
+	counter, err := provider.Meter(testScopeName).Int64Counter("test.duration", metric.WithUnit("s"))
+	require.NoError(t, err)
+	counter.Add(context.Background(), 3)
+
+	families, err := registry.Gather()
+	require.NoError(t, err)
+	require.Len(t, families, 1)
+	assert.Equal(t, "argo_test_duration", families[0].GetName())
+	assert.InDelta(t, 3, families[0].Metric[0].GetCounter().GetValue(), 0.001)
+}
 
 func TestDisablePrometheusServer(t *testing.T) {
 	config := Config{
