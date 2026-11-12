@@ -167,3 +167,38 @@ func TestHandleExecutionControlErrorMarksChildNodes(t *testing.T) {
 	assert.Equal(t, v1alpha1.NodeFailed, woc.wf.Status.Nodes[step1NodeName].Phase)
 	assert.Equal(t, v1alpha1.NodeFailed, woc.wf.Status.Nodes[step2NodeName].Phase)
 }
+
+func TestHandleExecutionControlErrorPreservesExitHandlers(t *testing.T) {
+	for _, phase := range []v1alpha1.NodePhase{v1alpha1.NodePending, v1alpha1.NodeRunning} {
+		t.Run(string(phase), func(t *testing.T) {
+			cancel, controller := newController()
+			defer cancel()
+
+			workflow := v1alpha1.MustUnmarshalWorkflow(workflowWithContainerSetPodInPending)
+			parentID := "container-set-termination-demopw5vv-842041608"
+			parent := workflow.Status.Nodes[parentID]
+			exitName := parent.Name + ".onExit"
+			exitID := workflow.NodeID(exitName)
+			containerName := exitName + ".cleanup"
+			containerID := workflow.NodeID(containerName)
+			parent.Children = append(parent.Children, exitID)
+			workflow.Status.Nodes[parentID] = parent
+			workflow.Status.Nodes[exitID] = v1alpha1.NodeStatus{
+				ID: exitID, Name: exitName, Type: v1alpha1.NodeTypePod,
+				BoundaryID: parent.BoundaryID, Phase: phase, Children: []string{containerID},
+			}
+			workflow.Status.Nodes[containerID] = v1alpha1.NodeStatus{
+				ID: containerID, Name: containerName, Type: v1alpha1.NodeTypeContainer,
+				BoundaryID: exitID, Phase: v1alpha1.NodePending,
+			}
+			woc := newWorkflowOperationCtx(workflow, controller)
+
+			woc.handleExecutionControlError(parentID, &sync.RWMutex{}, "stopped")
+
+			assert.Equal(t, v1alpha1.NodeFailed, woc.wf.Status.Nodes[parentID].Phase)
+			assert.Equal(t, v1alpha1.NodeFailed, woc.wf.Status.Nodes["container-set-termination-demopw5vv-876886607"].Phase)
+			assert.Equal(t, phase, woc.wf.Status.Nodes[exitID].Phase)
+			assert.Equal(t, v1alpha1.NodePending, woc.wf.Status.Nodes[containerID].Phase)
+		})
+	}
+}

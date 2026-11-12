@@ -93,10 +93,10 @@ func (woc *wfOperationCtx) handleExecutionControlError(nodeID string, wfNodesLoc
 		return
 	}
 
-	// if node is a pod created from ContainerSet template
-	// then need to fail child nodes so they will not hang in Pending after pod deletion
+	// Fail containers belonging to this pod so they do not hang in Pending after
+	// pod deletion. Exit handlers and their containers run in separate pods.
 	for _, child := range children {
-		if !child.Fulfilled() {
+		if child.Type == wfv1.NodeTypeContainer && child.BoundaryID == nodeID && !child.Fulfilled() {
 			woc.markNodePhase(child.Name, wfv1.NodeFailed, errorMsg)
 		}
 	}
