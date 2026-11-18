@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -231,13 +232,33 @@ func TestCounterMetric(t *testing.T) {
 	}
 }
 
+// getMetricStringValue renders a metric in the compact text layout that
+// golang/protobuf produced before prometheus/client_model moved to protobuf-go.
+// protobuf-go's String() output is deliberately unstable (it randomly adds
+// whitespace), so the assertions below must not depend on it.
 func getMetricStringValue(metric prometheus.Metric) (string, error) {
-	metricString := &dto.Metric{}
-	err := metric.Write(metricString)
-	if err != nil {
+	m := &dto.Metric{}
+	if err := metric.Write(m); err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("%v", metricString), nil
+	var sb strings.Builder
+	for _, l := range m.GetLabel() {
+		fmt.Fprintf(&sb, "label:<name:%q value:%q > ", l.GetName(), l.GetValue())
+	}
+	if g := m.GetGauge(); g != nil {
+		fmt.Fprintf(&sb, "gauge:<value:%v > ", g.GetValue())
+	}
+	if c := m.GetCounter(); c != nil {
+		fmt.Fprintf(&sb, "counter:<value:%v > ", c.GetValue())
+	}
+	if h := m.GetHistogram(); h != nil {
+		fmt.Fprintf(&sb, "histogram:<sample_count:%d sample_sum:%v", h.GetSampleCount(), h.GetSampleSum())
+		for _, b := range h.GetBucket() {
+			fmt.Fprintf(&sb, " bucket:<cumulative_count:%d upper_bound:%v >", b.GetCumulativeCount(), b.GetUpperBound())
+		}
+		sb.WriteString(" > ")
+	}
+	return sb.String(), nil
 }
 
 func getMetricGaugeValue(metric prometheus.Metric) (*float64, error) {
