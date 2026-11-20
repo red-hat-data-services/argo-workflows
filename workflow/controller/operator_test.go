@@ -4717,7 +4717,6 @@ func TestResolvePlaceholdersInGlobalVariables(t *testing.T) {
 	ctx := context.Background()
 	wf := wfv1.MustUnmarshalWorkflow(globalVariablePlaceholders)
 	woc := newWoc(*wf)
-	woc.controller.Config.AllowedWorkflowServiceAccounts = map[string][]string{wf.Namespace: {wf.Spec.ServiceAccountName}}
 	woc.operate(ctx)
 	assert.Equal(t, wfv1.WorkflowRunning, woc.wf.Status.Phase)
 	pods, err := listPods(woc)
@@ -5210,7 +5209,6 @@ func TestControllerReferenceMode(t *testing.T) {
 	wf := wfv1.MustUnmarshalWorkflow(globalVariablePlaceholders)
 	cancel, controller := newController()
 	defer cancel()
-	controller.Config.AllowedWorkflowServiceAccounts = map[string][]string{wf.Namespace: {wf.Spec.ServiceAccountName}}
 
 	ctx := context.Background()
 	controller.Config.WorkflowRestrictions = &config.WorkflowRestrictions{}
@@ -9392,7 +9390,6 @@ func TestExitHandlerWithRetryNodeParam(t *testing.T) {
 	wf := wfv1.MustUnmarshalWorkflow(exitHandlerWithRetryNodeParam)
 	cancel, controller := newController(wf)
 	defer cancel()
-	controller.Config.AllowedWorkflowServiceAccounts = map[string][]string{wf.Namespace: {wf.Spec.ServiceAccountName}}
 
 	ctx := context.Background()
 	woc := newWorkflowOperationCtx(wf, controller)
@@ -9452,7 +9449,6 @@ func TestSetWFPodNamesAnnotation(t *testing.T) {
 		wf := wfv1.MustUnmarshalWorkflow(exitHandlerWithRetryNodeParam)
 		cancel, controller := newController(wf)
 		defer cancel()
-		controller.Config.AllowedWorkflowServiceAccounts = map[string][]string{wf.Namespace: {wf.Spec.ServiceAccountName}}
 
 		ctx := context.Background()
 		woc := newWorkflowOperationCtx(wf, controller)

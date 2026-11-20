@@ -1980,6 +1980,11 @@ func (woc *wfOperationCtx) executeTemplate(ctx context.Context, nodeName string,
 		return woc.initializeNodeOrMarkError(node, nodeName, tmplCtx.GetTemplateScope(), orgTmpl, opts.boundaryID, opts.nodeFlag, ErrMaxDepthExceeded), ErrMaxDepthExceeded
 	}
 
+	if woc.requiresLocalTemplates() && orgTmpl.GetTemplateRef() != nil {
+		err := errors.New(errors.CodeForbidden, "workflows using an authorized service account must use local templates")
+		return woc.initializeNodeOrMarkError(node, nodeName, templateScope, orgTmpl, opts.boundaryID, opts.nodeFlag, err), err
+	}
+
 	newTmplCtx, resolvedTmpl, templateStored, err := tmplCtx.ResolveTemplate(orgTmpl)
 	if err != nil {
 		return woc.initializeNodeOrMarkError(node, nodeName, templateScope, orgTmpl, opts.boundaryID, opts.nodeFlag, err), err
@@ -4054,6 +4059,12 @@ func (woc *wfOperationCtx) retryStrategy(tmpl *wfv1.Template) *wfv1.RetryStrateg
 }
 
 func (woc *wfOperationCtx) setExecWorkflow(ctx context.Context) error {
+	if woc.requiresLocalTemplates() && woc.wf.Spec.WorkflowTemplateRef != nil {
+		err := errors.New(errors.CodeForbidden, "workflows using an authorized service account must use local templates")
+		woc.markWorkflowError(ctx, err)
+		return err
+	}
+
 	if woc.wf.Spec.WorkflowTemplateRef != nil { // not-woc-misuse
 		err := woc.setStoredWfSpec()
 		if err != nil {

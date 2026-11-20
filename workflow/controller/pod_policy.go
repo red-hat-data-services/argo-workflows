@@ -1,27 +1,38 @@
 package controller
 
 import (
-	"slices"
+	"os"
 
 	apiv1 "k8s.io/api/core/v1"
 
 	"github.com/argoproj/argo-workflows/v3/errors"
 )
 
+// The managed deployment enables this after installing admission for Workflow writes.
+const workflowAccountAuthorizationEnv = "ARGO_REQUIRE_WORKFLOW_SERVICE_ACCOUNT_AUTHORIZATION"
+
 func (woc *wfOperationCtx) checkWorkflowServiceAccount(name string) error {
-	if name == "" {
-		name = "default"
-	}
-	namespace := woc.wf.Namespace
-	allowed, configured := woc.controller.Config.AllowedWorkflowServiceAccounts[namespace]
-	if slices.Contains(allowed, name) || (!configured && name == "default") {
+	if os.Getenv(workflowAccountAuthorizationEnv) != "true" || name == "" || name == "default" {
 		return nil
 	}
-	return errors.Errorf(errors.CodeForbidden, "service account %q is not allowed for workflows in namespace %q", name, namespace)
+	// Admission authorizes the literal account on the original Workflow. Templates,
+	// defaults, substitutions, and Pod patches cannot delegate a different account.
+	if woc.orig.Spec.ServiceAccountName == name {
+		return nil
+	}
+	return errors.Errorf(errors.CodeForbidden, "service account %q must be authorized on the Workflow", name)
+}
+
+func (woc *wfOperationCtx) requiresLocalTemplates() bool {
+	account := woc.orig.Spec.ServiceAccountName
+	return os.Getenv(workflowAccountAuthorizationEnv) == "true" && account != "" && account != "default"
 }
 
 // Check the rendered spec after merging patches and assembling containers and volumes.
 func (woc *wfOperationCtx) validateWorkflowPodSpec(spec *apiv1.PodSpec) error {
+	if os.Getenv(workflowAccountAuthorizationEnv) != "true" {
+		return nil
+	}
 	account := spec.ServiceAccountName
 	if spec.DeprecatedServiceAccount != "" {
 		if account != "" && account != spec.DeprecatedServiceAccount {

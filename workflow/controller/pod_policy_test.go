@@ -12,6 +12,7 @@ import (
 )
 
 func TestWorkflowPodPolicy(t *testing.T) {
+	t.Setenv(workflowAccountAuthorizationEnv, "true")
 	tests := []struct {
 		name      string
 		configure func(*wfOperationCtx, *wfv1.Template)
@@ -64,6 +65,7 @@ func TestWorkflowPodPolicy(t *testing.T) {
 }
 
 func TestWorkflowPodPolicyAgentAndArtifactGC(t *testing.T) {
+	t.Setenv(workflowAccountAuthorizationEnv, "true")
 	ctx := context.Background()
 	t.Run("agent", func(t *testing.T) {
 		woc := newWoc()
@@ -87,18 +89,25 @@ func TestWorkflowPodPolicyAgentAndArtifactGC(t *testing.T) {
 }
 
 func TestWorkflowServiceAccountPolicy(t *testing.T) {
+	t.Setenv(workflowAccountAuthorizationEnv, "true")
 	woc := newWoc()
 	require.NoError(t, woc.checkWorkflowServiceAccount(""))
+	require.NoError(t, woc.checkWorkflowServiceAccount("default"))
 	require.Error(t, woc.checkWorkflowServiceAccount("runner"))
 
-	woc.controller.Config.AllowedWorkflowServiceAccounts = map[string][]string{
-		"team-a": {"runner"},
-		"team-b": {},
-	}
-	woc.wf.Namespace = "team-a"
+	woc.orig.Spec.ServiceAccountName = "runner"
 	require.NoError(t, woc.checkWorkflowServiceAccount("runner"))
-	require.Error(t, woc.checkWorkflowServiceAccount(""))
-	woc.wf.Namespace = "team-b"
-	require.Error(t, woc.checkWorkflowServiceAccount("runner"))
-	require.Error(t, woc.checkWorkflowServiceAccount(""))
+	require.Error(t, woc.checkWorkflowServiceAccount("other"))
+}
+
+func TestWorkflowPodPolicyAllowsAuthorizedAccount(t *testing.T) {
+	t.Setenv(workflowAccountAuthorizationEnv, "true")
+	wf := wfv1.MustUnmarshalWorkflow(helloWorldWf)
+	wf.Spec.ServiceAccountName = "pipeline-runner"
+	woc := newWoc(*wf)
+	tmpl := &woc.execWf.Spec.Templates[0]
+
+	pod, err := woc.createWorkflowPod(context.Background(), tmpl.Name, []apiv1.Container{*tmpl.Container}, tmpl, &createWorkflowPodOpts{})
+	require.NoError(t, err)
+	require.Equal(t, "pipeline-runner", pod.Spec.ServiceAccountName)
 }
