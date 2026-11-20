@@ -4059,13 +4059,12 @@ func (woc *wfOperationCtx) retryStrategy(tmpl *wfv1.Template) *wfv1.RetryStrateg
 }
 
 func (woc *wfOperationCtx) setExecWorkflow(ctx context.Context) error {
-	if woc.requiresLocalTemplates() && woc.wf.Spec.WorkflowTemplateRef != nil {
-		err := errors.New(errors.CodeForbidden, "workflows using an authorized service account must use local templates")
-		woc.markWorkflowError(ctx, err)
-		return err
-	}
-
 	if woc.wf.Spec.WorkflowTemplateRef != nil { // not-woc-misuse
+		if woc.requiresLocalTemplates() {
+			err := errors.New(errors.CodeForbidden, "workflows using an authorized service account must use local templates")
+			woc.markWorkflowError(ctx, err)
+			return err
+		}
 		err := woc.setStoredWfSpec()
 		if err != nil {
 			woc.markWorkflowError(ctx, err)
