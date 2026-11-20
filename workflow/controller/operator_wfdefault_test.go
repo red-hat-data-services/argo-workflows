@@ -205,6 +205,7 @@ func TestWFDefaultsWithWorkflow(t *testing.T) {
 
 	ctx := context.Background()
 	controller.Config.WorkflowDefaults = wfDefault
+	controller.Config.AllowedWorkflowServiceAccounts = map[string][]string{"": {wfDefault.Spec.ServiceAccountName}, "default": {wfDefault.Spec.ServiceAccountName}}
 	woc := newWorkflowOperationCtx(wf, controller)
 	woc.operate(ctx)
 	assert.Equal(woc.wf.Spec, wfResult.Spec)
@@ -231,6 +232,7 @@ func TestWFDefaultWithWFTAndWf(t *testing.T) {
 		cancel, controller := newController(wft)
 		defer cancel()
 		controller.Config.WorkflowDefaults = wfDefault
+		controller.Config.AllowedWorkflowServiceAccounts = map[string][]string{"": {wfDefault.Spec.ServiceAccountName}, "default": {wfDefault.Spec.ServiceAccountName}}
 
 		wf := wfv1.Workflow{ObjectMeta: metav1.ObjectMeta{Namespace: "default"}, Spec: wfv1.WorkflowSpec{WorkflowTemplateRef: &wfv1.WorkflowTemplateRef{Name: "workflow-template-submittable"}}}
 		woc := newWorkflowOperationCtx(&wf, controller)
@@ -244,6 +246,7 @@ func TestWFDefaultWithWFTAndWf(t *testing.T) {
 		cancel, controller := newController(wft)
 		defer cancel()
 		controller.Config.WorkflowDefaults = wfDefault
+		controller.Config.AllowedWorkflowServiceAccounts = map[string][]string{"": {wfDefault.Spec.ServiceAccountName}, "default": {wfDefault.Spec.ServiceAccountName}}
 
 		ttlStrategy := wfv1.TTLStrategy{
 			SecondsAfterCompletion: pointer.Int32Ptr(10),
@@ -271,6 +274,7 @@ func TestWFDefaultWithWFTAndWf(t *testing.T) {
 		cancel, controller := newController(wft)
 		defer cancel()
 		controller.Config.WorkflowDefaults = wfDefault
+		controller.Config.AllowedWorkflowServiceAccounts = map[string][]string{"": {wfDefault.Spec.ServiceAccountName}, "default": {wfDefault.Spec.ServiceAccountName}}
 
 		param := wfv1.Parameter{
 			Name:  "Test",

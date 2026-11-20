@@ -494,6 +494,10 @@ func (woc *wfOperationCtx) createArtifactGCPod(ctx context.Context, strategy wfv
 		pod.Labels[common.EnvVarInstanceID] = v
 	}
 
+	if err := woc.validateWorkflowPodSpec(&pod.Spec); err != nil {
+		return nil, err
+	}
+
 	_, err := woc.controller.kubeclientset.CoreV1().Pods(woc.wf.Namespace).Create(ctx, pod, metav1.CreateOptions{})
 
 	if err != nil {

@@ -188,6 +188,7 @@ func TestScriptTemplateWithoutVolumeOptionalArtifact(t *testing.T) {
 // for the pod from workflow.spec.serviceAccountName.
 func TestWFLevelServiceAccount(t *testing.T) {
 	woc := newWoc()
+	woc.controller.Config.AllowedWorkflowServiceAccounts = map[string][]string{woc.wf.Namespace: {"foo"}}
 	woc.execWf.Spec.ServiceAccountName = "foo"
 	tmplCtx, err := woc.createTemplateContext(wfv1.ResourceScopeLocal, "")
 	assert.NoError(t, err)
@@ -206,6 +207,7 @@ func TestWFLevelServiceAccount(t *testing.T) {
 // for the pod from workflow.spec.serviceAccountName.
 func TestTmplServiceAccount(t *testing.T) {
 	woc := newWoc()
+	woc.controller.Config.AllowedWorkflowServiceAccounts = map[string][]string{woc.wf.Namespace: {"foo", "tmpl"}}
 	woc.execWf.Spec.ServiceAccountName = "foo"
 	woc.execWf.Spec.Templates[0].ServiceAccountName = "tmpl"
 	tmplCtx, err := woc.createTemplateContext(wfv1.ResourceScopeLocal, "")
@@ -225,6 +227,7 @@ func TestTmplServiceAccount(t *testing.T) {
 // TestWFLevelAutomountServiceAccountToken verifies the ability to carry forward workflow level AutomountServiceAccountToken to Podspec.
 func TestWFLevelAutomountServiceAccountToken(t *testing.T) {
 	woc := newWoc()
+	woc.controller.Config.AllowedWorkflowServiceAccounts = map[string][]string{woc.wf.Namespace: {"default", "foo"}}
 	ctx := context.Background()
 	_, err := util.CreateServiceAccountWithToken(ctx, woc.controller.kubeclientset, "", "foo")
 	assert.NoError(t, err)
@@ -247,6 +250,7 @@ func TestWFLevelAutomountServiceAccountToken(t *testing.T) {
 // TestTmplLevelAutomountServiceAccountToken verifies the ability to carry forward template level AutomountServiceAccountToken to Podspec.
 func TestTmplLevelAutomountServiceAccountToken(t *testing.T) {
 	woc := newWoc()
+	woc.controller.Config.AllowedWorkflowServiceAccounts = map[string][]string{woc.wf.Namespace: {"default", "foo"}}
 	ctx := context.Background()
 	_, err := util.CreateServiceAccountWithToken(ctx, woc.controller.kubeclientset, "", "foo")
 	assert.NoError(t, err)
@@ -281,6 +285,7 @@ func verifyServiceAccountTokenVolumeMount(t *testing.T, ctr apiv1.Container, vol
 // TestWFLevelExecutorServiceAccountName verifies the ability to carry forward workflow level AutomountServiceAccountToken to Podspec.
 func TestWFLevelExecutorServiceAccountName(t *testing.T) {
 	woc := newWoc()
+	woc.controller.Config.AllowedWorkflowServiceAccounts = map[string][]string{woc.wf.Namespace: {"default", "foo"}}
 	ctx := context.Background()
 	_, err := util.CreateServiceAccountWithToken(ctx, woc.controller.kubeclientset, "", "foo")
 	assert.NoError(t, err)
@@ -304,6 +309,7 @@ func TestWFLevelExecutorServiceAccountName(t *testing.T) {
 // TestTmplLevelExecutorServiceAccountName verifies the ability to carry forward template level AutomountServiceAccountToken to Podspec.
 func TestTmplLevelExecutorServiceAccountName(t *testing.T) {
 	woc := newWoc()
+	woc.controller.Config.AllowedWorkflowServiceAccounts = map[string][]string{woc.wf.Namespace: {"default", "tmpl"}}
 	ctx := context.Background()
 	_, err := util.CreateServiceAccountWithToken(ctx, woc.controller.kubeclientset, "", "foo")
 	assert.NoError(t, err)
@@ -332,6 +338,7 @@ func TestCtrlLevelExecutorSecurityContext(t *testing.T) {
 	var user int64 = 1000
 	ctx := context.Background()
 	woc := newWoc()
+	woc.controller.Config.AllowedWorkflowServiceAccounts = map[string][]string{woc.wf.Namespace: {"default", "tmpl"}}
 	_, err := util.CreateServiceAccountWithToken(ctx, woc.controller.kubeclientset, "", "foo")
 	assert.NoError(t, err)
 	_, err = util.CreateServiceAccountWithToken(ctx, woc.controller.kubeclientset, "", "tmpl")
@@ -1170,7 +1177,7 @@ func TestTmplLevelSecurityContext(t *testing.T) {
 func Test_createSecretVolumesFromArtifactLocations_SSECUsed(t *testing.T) {
 	ctx := context.Background()
 
-	cancel, controller := newControllerWithComplexDefaults()
+	cancel, controller := newController()
 	defer cancel()
 
 	wf := wfv1.MustUnmarshalWorkflow(helloWorldWf)
@@ -1565,9 +1572,7 @@ func TestWindowsUNCPathsAreRemoved(t *testing.T) {
 	uncVolume := apiv1.Volume{
 		Name: "unc",
 		VolumeSource: apiv1.VolumeSource{
-			HostPath: &apiv1.HostPathVolumeSource{
-				Path: "\\\\.\\pipe\\test",
-			},
+			EmptyDir: &apiv1.EmptyDirVolumeSource{},
 		},
 	}
 	uncMount := apiv1.VolumeMount{

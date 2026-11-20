@@ -369,10 +369,18 @@ func (woc *wfOperationCtx) createWorkflowPod(ctx context.Context, nodeName strin
 		pod.Spec = *patchedPodSpec
 	}
 
+	if err := woc.validateWorkflowPodSpec(&pod.Spec); err != nil {
+		return nil, err
+	}
+
 	for i, c := range pod.Spec.Containers {
 		if c.Name != common.WaitContainerName {
 			// https://kubernetes.io/docs/tasks/inject-data-application/define-command-argument-container/#notes
 			if len(c.Command) == 0 {
+				// The registry lookup uses the workflow account independently of the pod account.
+				if err := woc.checkWorkflowServiceAccount(woc.execWf.Spec.ServiceAccountName); err != nil {
+					return nil, err
+				}
 				x, err := woc.controller.entrypoint.Lookup(ctx, c.Image, entrypoint.Options{
 					Namespace: woc.wf.Namespace, ServiceAccountName: woc.execWf.Spec.ServiceAccountName, ImagePullSecrets: woc.execWf.Spec.ImagePullSecrets,
 				})

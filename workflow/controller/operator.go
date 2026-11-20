@@ -4249,6 +4249,9 @@ func (woc *wfOperationCtx) getPodName(nodeName, templateName string) string {
 }
 
 func (woc *wfOperationCtx) getServiceAccountTokenName(ctx context.Context, name string) (string, error) {
+	if err := woc.checkWorkflowServiceAccount(name); err != nil {
+		return "", err
+	}
 	if name == "" {
 		name = "default"
 	}

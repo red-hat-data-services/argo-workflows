@@ -93,6 +93,10 @@ type Config struct {
 	// WorkflowRestrictions restricts the controller to executing Workflows that meet certain restrictions
 	WorkflowRestrictions *WorkflowRestrictions `json:"workflowRestrictions,omitempty"`
 
+	// AllowedWorkflowServiceAccounts lists the service accounts that workflows may use in each namespace.
+	// Namespaces without an entry allow only the default service account.
+	AllowedWorkflowServiceAccounts map[string][]string `json:"allowedWorkflowServiceAccounts,omitempty"`
+
 	// Adds configurable initial delay (for K8S clusters with mutating webhooks) to prevent workflow getting modified by MWC.
 	InitialDelay metav1.Duration `json:"initialDelay,omitempty"`
 
