@@ -266,6 +266,10 @@ func (woc *wfOperationCtx) createAgentPod(ctx context.Context) (*apiv1.Pod, erro
 		pod.Labels[common.LabelKeyControllerInstanceID] = woc.controller.Config.InstanceID
 	}
 
+	if err := woc.validateWorkflowPodSpec(&pod.Spec); err != nil {
+		return nil, err
+	}
+
 	log.Debug("Creating Agent pod")
 
 	created, err := woc.controller.kubeclientset.CoreV1().Pods(woc.wf.ObjectMeta.Namespace).Create(ctx, pod, metav1.CreateOptions{})
