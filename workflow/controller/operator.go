@@ -1980,11 +1980,6 @@ func (woc *wfOperationCtx) executeTemplate(ctx context.Context, nodeName string,
 		return woc.initializeNodeOrMarkError(node, nodeName, tmplCtx.GetTemplateScope(), orgTmpl, opts.boundaryID, opts.nodeFlag, ErrMaxDepthExceeded), ErrMaxDepthExceeded
 	}
 
-	if woc.requiresLocalTemplates() && orgTmpl.GetTemplateRef() != nil {
-		err := errors.New(errors.CodeForbidden, "workflows using an authorized service account must use local templates")
-		return woc.initializeNodeOrMarkError(node, nodeName, templateScope, orgTmpl, opts.boundaryID, opts.nodeFlag, err), err
-	}
-
 	newTmplCtx, resolvedTmpl, templateStored, err := tmplCtx.ResolveTemplate(orgTmpl)
 	if err != nil {
 		return woc.initializeNodeOrMarkError(node, nodeName, templateScope, orgTmpl, opts.boundaryID, opts.nodeFlag, err), err
@@ -4060,11 +4055,6 @@ func (woc *wfOperationCtx) retryStrategy(tmpl *wfv1.Template) *wfv1.RetryStrateg
 
 func (woc *wfOperationCtx) setExecWorkflow(ctx context.Context) error {
 	if woc.wf.Spec.WorkflowTemplateRef != nil { // not-woc-misuse
-		if woc.requiresLocalTemplates() {
-			err := errors.New(errors.CodeForbidden, "workflows using an authorized service account must use local templates")
-			woc.markWorkflowError(ctx, err)
-			return err
-		}
 		err := woc.setStoredWfSpec()
 		if err != nil {
 			woc.markWorkflowError(ctx, err)
@@ -4083,6 +4073,14 @@ func (woc *wfOperationCtx) setExecWorkflow(ctx context.Context) error {
 			return err
 		}
 		woc.volumes = woc.wf.Spec.DeepCopy().Volumes // not-woc-misuse
+	}
+
+	// A suspended or pending Workflow can be approved explicitly on update.
+	// Leave it eligible for reconciliation without starting a named-account Pod.
+	if !woc.wf.Status.Fulfilled() {
+		if err := woc.checkWorkflowServiceAccount(woc.execWf.Spec.ServiceAccountName); err != nil {
+			return err
+		}
 	}
 
 	// Perform one-time workflow validation

@@ -2,6 +2,13 @@ package controller
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/base64"
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -96,6 +103,8 @@ func TestWorkflowServiceAccountPolicy(t *testing.T) {
 	require.Error(t, woc.checkWorkflowServiceAccount("runner"))
 
 	woc.orig.Spec.ServiceAccountName = "runner"
+	require.Error(t, woc.checkWorkflowServiceAccount("runner"), "legacy Workflow is held for approval")
+	approveTestWorkflow(t, woc.orig, "runner")
 	require.NoError(t, woc.checkWorkflowServiceAccount("runner"))
 	require.Error(t, woc.checkWorkflowServiceAccount("other"))
 }
@@ -104,10 +113,32 @@ func TestWorkflowPodPolicyAllowsAuthorizedAccount(t *testing.T) {
 	t.Setenv(workflowAccountAuthorizationEnv, "true")
 	wf := wfv1.MustUnmarshalWorkflow(helloWorldWf)
 	wf.Spec.ServiceAccountName = "pipeline-runner"
+	approveTestWorkflow(t, wf, "pipeline-runner")
 	woc := newWoc(*wf)
 	tmpl := &woc.execWf.Spec.Templates[0]
 
 	pod, err := woc.createWorkflowPod(context.Background(), tmpl.Name, []apiv1.Container{*tmpl.Container}, tmpl, &createWorkflowPodOpts{})
 	require.NoError(t, err)
 	require.Equal(t, "pipeline-runner", pod.Spec.ServiceAccountName)
+}
+
+func approveTestWorkflow(t *testing.T, workflow *wfv1.Workflow, account string) {
+	t.Helper()
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	publicKey, err := x509.MarshalPKIXPublicKey(&key.PublicKey)
+	require.NoError(t, err)
+	t.Setenv(workflowApprovalKeyEnv, base64.RawURLEncoding.EncodeToString(publicKey))
+	message, err := json.Marshal(map[string]string{
+		"namespace": workflow.Namespace, "name": workflow.Name, "uid": string(workflow.UID),
+		"resource": "workflows", "account": account,
+	})
+	require.NoError(t, err)
+	digest := sha256.Sum256(message)
+	sig, err := ecdsa.SignASN1(rand.Reader, key, digest[:])
+	require.NoError(t, err)
+	if workflow.Annotations == nil {
+		workflow.Annotations = map[string]string{}
+	}
+	workflow.Annotations[workflowApprovalAnnotation] = base64.RawURLEncoding.EncodeToString(message) + "." + base64.RawURLEncoding.EncodeToString(sig)
 }

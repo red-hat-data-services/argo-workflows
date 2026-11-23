@@ -125,14 +125,14 @@ func (woc *wfOperationCtx) artifactGCStrategiesReady() map[wfv1.ArtifactGCStrate
 type templatesToArtifacts map[string]wfv1.ArtifactSearchResults
 
 // Artifact GC Strategy is ready: start up Pods to handle it
-func (woc *wfOperationCtx) processArtifactGCStrategy(ctx context.Context, strategy wfv1.ArtifactGCStrategy) error {
+func (woc *wfOperationCtx) processArtifactGCStrategy(ctx context.Context, strategy wfv1.ArtifactGCStrategy) (err error) {
 
 	defer func() {
-		woc.wf.Status.ArtifactGCStatus.SetArtifactGCStrategyProcessed(strategy, true)
-		woc.updated = true
+		if err == nil {
+			woc.wf.Status.ArtifactGCStatus.SetArtifactGCStrategyProcessed(strategy, true)
+			woc.updated = true
+		}
 	}()
-
-	var err error
 
 	woc.log.Debugf("processing Artifact GC Strategy %s", strategy)
 
@@ -370,15 +370,19 @@ func (woc *wfOperationCtx) createWorkflowArtifactGCTask(ctx context.Context, tas
 	}
 	if foundTask != nil {
 		woc.log.Debugf("Artifact GC Task %s already exists", task.Name)
-	} else {
-		woc.log.Infof("Creating Artifact GC Task %s", task.Name)
-
-		task, err = woc.controller.wfclientset.ArgoprojV1alpha1().WorkflowArtifactGCTasks(woc.wf.Namespace).Create(ctx, task, metav1.CreateOptions{})
-		if err != nil {
-			return nil, fmt.Errorf("failed to Create WorkflowArtifactGCTask %q for Garbage Collection: %w", task.Name, err)
-		}
+		return foundTask, nil
 	}
-	return task, nil
+
+	woc.log.Infof("Creating Artifact GC Task %s", task.Name)
+	tasks := woc.controller.wfclientset.ArgoprojV1alpha1().WorkflowArtifactGCTasks(woc.wf.Namespace)
+	created, err := tasks.Create(ctx, task, metav1.CreateOptions{})
+	if apierr.IsAlreadyExists(err) {
+		created, err = tasks.Get(ctx, task.Name, metav1.GetOptions{})
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get or create WorkflowArtifactGCTask %q for garbage collection: %w", task.Name, err)
+	}
+	return created, nil
 }
 
 // create the Pod which will do the deletions

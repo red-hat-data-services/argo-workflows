@@ -1,7 +1,14 @@
 package controller
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/base64"
+	"encoding/json"
 	"os"
+	"strings"
 
 	apiv1 "k8s.io/api/core/v1"
 
@@ -15,17 +22,56 @@ func (woc *wfOperationCtx) checkWorkflowServiceAccount(name string) error {
 	if os.Getenv(workflowAccountAuthorizationEnv) != "true" || name == "" || name == "default" {
 		return nil
 	}
-	// Admission authorizes the literal account on the original Workflow. Templates,
-	// defaults, substitutions, and Pod patches cannot delegate a different account.
-	if woc.orig.Spec.ServiceAccountName == name {
+	// Only an admission-signed account may be used, including on Workflows
+	// already stored before the controller was upgraded.
+	if woc.hasWorkflowAccountApproval(name) {
 		return nil
 	}
-	return errors.Errorf(errors.CodeForbidden, "service account %q must be authorized on the Workflow", name)
+	return errors.Errorf(errors.CodeForbidden, "service account %q needs workflow admission approval", name)
 }
 
-func (woc *wfOperationCtx) requiresLocalTemplates() bool {
-	account := woc.orig.Spec.ServiceAccountName
-	return os.Getenv(workflowAccountAuthorizationEnv) == "true" && account != "" && account != "default"
+const workflowApprovalAnnotation = "pipelines.opendatahub.io/service-account-approval"
+const workflowApprovalKeyEnv = "ARGO_WORKFLOW_APPROVAL_PUBLIC_KEY"
+
+func (woc *wfOperationCtx) hasWorkflowAccountApproval(account string) bool {
+	key, err := base64.RawURLEncoding.DecodeString(os.Getenv(workflowApprovalKeyEnv))
+	if err != nil {
+		return false
+	}
+	parsed, err := x509.ParsePKIXPublicKey(key)
+	if err != nil {
+		return false
+	}
+	publicKey, ok := parsed.(*ecdsa.PublicKey)
+	if !ok || publicKey.Curve != elliptic.P256() {
+		return false
+	}
+	body, signature, ok := strings.Cut(woc.orig.Annotations[workflowApprovalAnnotation], ".")
+	if !ok {
+		return false
+	}
+	message, err := base64.RawURLEncoding.DecodeString(body)
+	if err != nil {
+		return false
+	}
+	sig, err := base64.RawURLEncoding.DecodeString(signature)
+	digest := sha256.Sum256(message)
+	if err != nil || !ecdsa.VerifyASN1(publicKey, digest[:], sig) {
+		return false
+	}
+	var approval struct {
+		Namespace string
+		Resource  string
+		Name      string
+		UID       string
+		Account   string
+	}
+	if err := json.Unmarshal(message, &approval); err != nil {
+		return false
+	}
+	return approval.Resource == "workflows" && approval.Namespace == woc.orig.Namespace &&
+		approval.Name == woc.orig.Name && approval.Account == account &&
+		(approval.UID == "" || approval.UID == string(woc.orig.UID))
 }
 
 // Check the rendered spec after merging patches and assembling containers and volumes.

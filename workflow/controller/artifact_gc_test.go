@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -9,6 +10,9 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	kubefake "k8s.io/client-go/kubernetes/fake"
+	kubetesting "k8s.io/client-go/testing"
 
 	wfv1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
 )
@@ -719,4 +723,31 @@ func TestWorkflowHasArtifactGC(t *testing.T) {
 		})
 	}
 
+}
+
+func TestArtifactGCResumesAfterPodCreationFailure(t *testing.T) {
+	wf := wfv1.MustUnmarshalWorkflow(artgcWorkflow)
+	cancel, controller := newController(wf)
+	defer cancel()
+	ctx := context.Background()
+	woc := newWorkflowOperationCtx(wf, controller)
+	woc.wf.Status.ArtifactGCStatus = &wfv1.ArtGCStatus{}
+	strategy := wfv1.ArtifactGCOnWorkflowCompletion
+
+	attempt := 0
+	controller.kubeclientset.(*kubefake.Clientset).PrependReactor("create", "pods", func(kubetesting.Action) (bool, runtime.Object, error) {
+		attempt++
+		if attempt == 2 {
+			return true, nil, errors.New("test admission denied GC Pod")
+		}
+		return false, nil, nil
+	})
+
+	assert.Error(t, woc.processArtifactGCStrategy(ctx, strategy))
+	assert.False(t, woc.wf.Status.ArtifactGCStatus.IsArtifactGCStrategyProcessed(strategy))
+	assert.NoError(t, woc.processArtifactGCStrategy(ctx, strategy))
+	assert.True(t, woc.wf.Status.ArtifactGCStatus.IsArtifactGCStrategyProcessed(strategy))
+	pods, err := controller.kubeclientset.CoreV1().Pods(woc.wf.Namespace).List(ctx, metav1.ListOptions{})
+	assert.NoError(t, err)
+	assert.Len(t, pods.Items, 2)
 }
